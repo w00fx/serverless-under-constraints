@@ -1,11 +1,11 @@
 ---
 schema_version: 1
 capability_id: CAP-HKP
-status: draft        # draft → ratified when a human merges the spec PR
+status: ratified     # draft → ratified when a human merges the spec PR
 owner: Raphael Moura
-approved_by: <human>
-approved_at: <date>
-provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. OQ-HKP-014 and OQ-HKP-015 record its proposals.
+approved_by: Raphael Moura
+approved_at: 2026-11-15
+provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15.
 ---
 
 # Capability: Study 2 — Evaluate ticket-sale rules under a traffic peak on one hot key
@@ -1294,7 +1294,7 @@ The runner MUST write the package of a rehearsal to `study-2/rehearsals/`. The r
 
 An execution that is not a rehearsal MUST NOT select a rehearsal package. The derivation tool MUST refuse a rehearsal package as the source of a value.
 
-*Proposed in this revision. Refer to OQ-HKP-015.* The study results file MUST give the number of rehearsal packages of each kind that are in `study-2/rehearsals/` at the time of the derivation. The file MUST say that a rehearsal is not evidence.
+The study results file MUST give the number of rehearsal packages of each kind that are in `study-2/rehearsals/` at the time of the derivation. The file MUST say that a rehearsal is not evidence.
 
 ## Reference Values
 
@@ -1512,8 +1512,6 @@ The increase of the warm write throughput from 4,000 to 6,000 units costs USD 1.
 
 ### OR-HKP-010 — Prime wave values
 
-*Proposed in this revision. Refer to OQ-HKP-014.*
-
 | Parameter | Value |
 |---|---:|
 | Prime purchase attempts in one prime wave | 600 |
@@ -1531,7 +1529,7 @@ The increase of the warm write throughput from 4,000 to 6,000 units costs USD 1.
 | Start of the burst | `12:00:00.500` |
 | First minute of the counters | `12:00` |
 
-With these values, the wave starts 3.0 seconds before the burst. In probe 5, the wave started 2.5 to 2.8 seconds before the burst.
+With these values, the wave starts 3.0 seconds before the burst. In probe 5, the wave also started 3 seconds before the burst, and the first requests ran 2.5 to 2.8 seconds before the burst.
 
 ## Acceptance Criteria
 
@@ -2596,7 +2594,7 @@ The runner records one event in the coordination journal for each of these steps
 
 The load generator host and its tool are a choice of the implementation. The load probe of BR-HKP-035 resolves by experiment if that choice can send the `PEAK` schedule.
 
-The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. Two questions stay open: OQ-HKP-014 and OQ-HKP-015.
+The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. No question stays open.
 
 ### OQ-HKP-001 — Code and name of the capability (RETIRED)
 
@@ -2665,23 +2663,15 @@ With the price inputs of OR-HKP-009 and a memory size of 512 MB, the writer esti
 - Decision: the spec uses general identifiers and no company name.
 - Resolved by: OR-HKP-001.
 
-### OQ-HKP-014 — Values of the prime wave
+### OQ-HKP-014 — Values of the prime wave (RETIRED)
 
-The values of OR-HKP-010 come from one rehearsal probe. The minimum of 570 environments and the limit of 3 prime waves have no measurement. The purchase path of a variant is heavier than the function of the probe route, and no trial showed the prime wave with a variant.
+- Decision: the values of OR-HKP-010 are the first values. They come from one rehearsal probe. If a variant validation shows that one prime wave is not sufficient for a variant, the owner changes the values in a new revision.
+- Resolved by: BR-HKP-064 and OR-HKP-010.
 
-AWS can have a documented method to keep the connections of a provisioned environment open. The writer did not find one.
+### OQ-HKP-015 — Number of rehearsals in the study results file (RETIRED)
 
-- Why unresolved: one rehearsal is not sufficient, and the owner did not see these values before this revision.
-- Decision needed from: the owner. A reviewer of the Lambda team, if one accepts.
-- Blocks: ratification of this revision. The first variant validation of `HOT_TIER` shows if one prime wave is sufficient for a variant.
-
-### OQ-HKP-015 — Number of rehearsals in the study results file
-
-On 2026-11-15, the rehearsal directory had 9 load probes, 7 variant validations and 1 run. The implementation has a rehearsal tool, and the draft spec did not have a rule for it. BR-HKP-066 writes that behavior as a rule and adds one thing: the study results file gives the number of rehearsals.
-
-- Why unresolved: the owner did not see this addition before this revision. The rehearsal directory is local, and its number is a statement of the operator and not proof.
-- Decision needed from: the owner.
-- Blocks: ratification of BR-HKP-066.
+- Decision: the study results file gives the number of rehearsals of each kind. This number is a statement of the operator, because the rehearsal directory is local.
+- Resolved by: BR-HKP-066.
 
 ## External Sources
 

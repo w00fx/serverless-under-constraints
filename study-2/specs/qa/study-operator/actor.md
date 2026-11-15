@@ -2,13 +2,11 @@
 schema_version: 1
 actor_code: OPS2
 actor: study-operator
-status: draft            # draft → ratified when a human merges the PR
+status: ratified            # draft → ratified when a human merges the PR
 owner: Raphael Moura
 ---
 
 # QA actor: study operator
-
-**[PROPOSED]** The writer made this file from the HKP spec. The operator must accept, change or remove each expectation and each charter before the merge.
 
 ## Test as
 

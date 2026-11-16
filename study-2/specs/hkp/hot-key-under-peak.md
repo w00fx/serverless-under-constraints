@@ -5,7 +5,7 @@ status: ratified     # draft → ratified when a human merges the spec PR
 owner: Raphael Moura
 approved_by: Raphael Moura
 approved_at: 2026-11-15
-provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15.
+provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal.
 ---
 
 # Capability: Study 2 — Evaluate ticket-sale rules under a traffic peak on one hot key
@@ -48,7 +48,7 @@ Result 1 includes:
 - one controlled payment provider with an authoritative payment ledger.
 - one load generator with an authoritative load journal.
 - a load probe that is a gate before all trials.
-- a prime wave before each burst to a function that answers synchronously.
+- a prime wave before each burst to a purchase function that answers synchronously, and before the second part of the load probe.
 - one variant validation for each variant.
 - one canonical run of 16 trials.
 - an independent oracle.
@@ -674,6 +674,8 @@ WHEN a reservation is open at the end of its hold time, the variant MUST end it 
 
 A variant can refund a charge and then do a release in place of the first way.
 
+This rule also applies to each other record of BR-HKP-067 that names a unit.
+
 The hold time MUST agree with OR-HKP-003 for all variants.
 
 ### BR-HKP-028 — Equal treatment
@@ -746,6 +748,8 @@ The stock store MUST be one DynamoDB item for each sale. The reservation operati
 
 The variant MUST write the reservation record of the buyer with a different call. The reservation operation and that call are not one atomic operation.
 
+`DIRECT_UPDATE` also does a release with two calls. BR-HKP-067 gives the rule for their sequence and for a refused write.
+
 *Source for the pattern: Amazon DynamoDB Developer Guide, "Working with items", conditional writes. AWS Database Blog, "Implement resource counters with Amazon DynamoDB", approach "Atomic counters" with a condition.*
 
 ### BR-HKP-033 — Variant `QUEUE_FIRST`
@@ -759,6 +763,8 @@ The stock store and the reservation operation MUST be the same as in `DIRECT_TRA
 The event source mapping MUST have the batch size, the maximum concurrency and the partial batch response of OR-HKP-004. The queue MUST have a dead-letter queue with the receive limit of OR-HKP-004.
 
 The consumer function MUST give the same final outcome for a message that it receives more than one time.
+
+The consumer function MUST do the purchase attempts of one batch one after the other. One execution of the consumer MUST NOT have two reservation operations in progress at the same time. The event source mapping then controls how many reservation operations are in progress on the stock item.
 
 *The stock store has one item and no shards. All variants have the same hot key.*
 
@@ -791,7 +797,7 @@ The load probe MUST have two parts.
 
 In the second part, the function MUST send the charge requests of OR-HKP-004 two times with the same `payment_request_id`.
 
-The load generator MUST send a prime wave before the burst of each part.
+The load generator MUST send a prime wave before the burst of the second part. The first part has no prime wave.
 
 The load probe MUST do the two parts one after the other. In each part, only the function of that part MUST have the concurrency values of a purchase function that answers synchronously.
 
@@ -813,7 +819,7 @@ The probe verdict MUST be `passed` only when all these conditions are true:
 - the payment provider answered each charge request correctly in the maximum time of OR-HKP-003.
 - the payment ledger has one charge, and only one, for each approved `payment_request_id`.
 - the payment ledger has no charge for a declined `payment_request_id`.
-- the prime proof of each part is complete.
+- the prime proof of the second part is complete.
 
 IF the evidence shows that one condition is not true, THEN the probe verdict MUST be `failed`. IF the evidence is not complete, THEN the probe verdict MUST be `indeterminate`.
 
@@ -1239,7 +1245,9 @@ The load generator MUST operate in the Region of the variants. It MUST NOT use t
 
 ### BR-HKP-064 — Prime wave before a burst
 
-Before each burst to a function that answers synchronously, the load generator MUST send one prime wave. This rule applies to the purchase functions of `DIRECT_TRANSACTION`, `DIRECT_UPDATE` and `HOT_TIER`, and to the functions of the probe routes.
+Before each burst to a purchase function that answers synchronously, the load generator MUST send one prime wave. This rule applies to the purchase functions of `DIRECT_TRANSACTION`, `DIRECT_UPDATE` and `HOT_TIER`, and to the function of the second probe route.
+
+The first probe route MUST have no prime wave. Its function only answers and opens no connection. It answers fast, and Lambda then uses one execution environment for more than one request of a wave.
 
 A prime wave MUST have the number of prime purchase attempts of OR-HKP-010. The load generator MUST send them at the same time.
 
@@ -1275,7 +1283,9 @@ The burst of each trial MUST start at the start of a UTC minute plus the offset 
 
 The interval of the counters MUST be from the minute in which the burst starts through the minute of the evidence freeze. The runner MUST read the counters of OBS-HKP-001 and the usage counters of BR-HKP-013 only for this interval. The throttle counters of BR-HKP-023 MUST use the same interval.
 
-Each reader of the apparatus MUST record the read capacity that DynamoDB reports for each of its reads. The oracle MUST subtract that capacity from the read units of the table in the estimated usage cost.
+Each reader of the apparatus MUST record the time and the read capacity that DynamoDB reports for each of its reads. The oracle MUST subtract that capacity from the read units of the table in the estimated usage cost.
+
+The oracle MUST subtract only the reads whose time is in the interval of the counters. IF the result is less than 0, THEN the oracle MUST use 0 and MUST add the label `reader_capacity_more_than_counter`.
 
 ### BR-HKP-066 — Rehearsals
 
@@ -1295,6 +1305,26 @@ The runner MUST write the package of a rehearsal to `study-2/rehearsals/`. The r
 An execution that is not a rehearsal MUST NOT select a rehearsal package. The derivation tool MUST refuse a rehearsal package as the source of a value.
 
 The study results file MUST give the number of rehearsal packages of each kind that are in `study-2/rehearsals/` at the time of the derivation. The file MUST say that a rehearsal is not evidence.
+
+### BR-HKP-067 — Each unit has a record
+
+*The revision of 2026-11-16 added this rule. In rehearsals, a variant closed a reservation and then lost its unit.*
+
+A refused write is a write that the stock store answers with a throttle or with a false condition. The variant knows that a refused write made no change.
+
+Each unit that is not an available unit and is not a ticket MUST have a durable record that names it.
+
+A variant MUST NOT close a reservation as released before the unit of that reservation is an available unit again.
+
+IF the stock store refuses the write that puts a unit back, THEN the record of that unit MUST stay open. The variant MUST do that write again until the unit is back.
+
+A variant can take a unit and then be unable to write the reservation record. In that condition, the variant MUST put the unit back or MUST write a durable record that names the unit.
+
+A variant MUST NOT put a unit back two times for one record. The record MUST show if its unit is back.
+
+A write to the stock store can have a result that the variant does not know. After such a write, the variant MUST NOT do a write that can put a second unit back. The record MUST stay open, and BR-HKP-006 reports it.
+
+`DIRECT_UPDATE` has no atomic operation for a unit and its record. In this variant, a write with an unknown result can cause a lost unit or an open reservation at settlement. This is a property of the variant, and the oracle reports it.
 
 ## Reference Values
 
@@ -1426,8 +1456,9 @@ Each row gives a value that an AWS document gives. External Sources gives the do
 | `DL-5` | ElastiCache Serverless | Maximum ECPUs for one slot | 30,000 for each second | `HT` | Not comparable at 1 second. Telemetry explains. |
 | `DL-6` | API Gateway | Account throttle for one Region | 10,000 requests for each second, bucket of 5,000 | All | Arrival rate of the scenario |
 | `DL-7` | Lambda with a standard queue | Concurrent batches of one event source mapping | Starts at 5, adds 300 for each minute, maximum 1,250 | `QF` | Maximum concurrency of OR-HKP-004 |
-| `DL-8` | Lambda | Default quota of concurrent executions | 1,000 | All | Quota that admission records |
+| `DL-8` | Lambda | Default quota of concurrent executions | 1,000 | All | Not comparable. The quota of an account is not a limit of the service. The condition statement gives the quota that admission recorded. |
 | `DL-9` | Lambda | Synchronous invocation requests of a function with provisioned concurrency | 10 for each second for each unit: 6,000 for 600 units | `DT`, `DU`, `HT` | Arrival rate of the scenario |
+| `DL-10` | DynamoDB | Burst capacity | Up to 300 seconds of unused read and write capacity | `DT`, `DU`, `QF` | Not comparable. It can explain a `peak_ticket_rate` that is more than `DL-3` or `DL-4` for a short time. |
 
 The rate of the `CONTROL` scenario is 20 purchase attempts for each second. It is below `DL-3`, `DL-4`, `DL-5` and `DL-6`.
 
@@ -1833,7 +1864,7 @@ Verifies BR-HKP-027.
 - **When** the variant ends the reservation
 - **Then** the buyer has one ticket and the reservation is closed.
 
-**Verification:** integration — for each variant. Cases: a charge and no ticket (ticket, or refund and release), no charge (release), a reservation at 59 seconds (no change), a reservation that is closed (no change).
+**Verification:** integration — for each variant. Cases: a charge and no ticket (ticket, or refund and release), no charge (release), a reservation at 59 seconds (no change), a reservation that is closed (no change). One more case has a release that the stock store refuses at the hold time, and the reservation stays open for the next pass.
 
 ### AC-HKP-023 — Equal inputs for all variants
 
@@ -1899,7 +1930,7 @@ Verifies BR-HKP-033.
 - **Then** the buyer has one ticket and one charge
 - **And** the outcome record stays `TICKET`.
 
-**Verification:** integration — cases: a second delivery after `TICKET`, after `PAYMENT_DECLINED` and after `SOLD_OUT`. A batch of 10 with one message that causes an error (only that message returns to the queue). A message that the consumer cannot complete in 5 receives goes to the dead-letter queue.
+**Verification:** integration — cases: a second delivery after `TICKET`, after `PAYMENT_DECLINED` and after `SOLD_OUT`. A batch of 10 with one message that causes an error (only that message returns to the queue). A message that the consumer cannot complete in 5 receives goes to the dead-letter queue. A batch of 10 messages gives 10 reservation operations one after the other, and no two are in progress at the same time.
 
 ### AC-HKP-028 — The script reserves one unit in one call
 
@@ -1919,7 +1950,7 @@ Verifies BR-HKP-035 and BR-HKP-036.
 - **Given** an admitted load probe in `us-east-1`
 - **When** the load generator sends the `PEAK` schedule to the probe route
 - **And** the probe sends 15,000 charge requests in 3 seconds, the first 1,000 two times
-- **And** the load generator sends a prime wave before each part
+- **And** the load generator sends a prime wave before the second part
 - **Then** the verifier derives the probe verdict from the frozen evidence
 - **And** the probe verdict is `passed` only when each condition of BR-HKP-036 is true.
 
@@ -2393,7 +2424,7 @@ Verifies BR-HKP-064.
 - A trial of `QUEUE_FIRST` (no prime wave, and the burst starts).
 - Two prime purchase attempts never have the same prime sale.
 
-Golden — a trial whose tables contain 600 prime tickets and 600 prime charges gives the same oracle result as the trial with no prime record. E2e — one load probe in the real cloud with a prime wave before each part.
+Golden — a trial whose tables contain 600 prime tickets and 600 prime charges gives the same oracle result as the trial with no prime record. E2e — one load probe in the real cloud with a prime wave before the second part and no prime wave before the first part.
 
 ### AC-HKP-060 — The counters of a trial contain no prime request
 
@@ -2409,7 +2440,7 @@ Verifies BR-HKP-065.
 - A prime wave in minute `11:59` and a burst in minute `12:00` (the counters start at `12:00`).
 - A prime answer that arrives at `12:00:00.100` (the prime proof is not complete).
 
-Golden — an estimated usage cost in which the oracle subtracts 8,000 read units that the readers recorded.
+Golden — an estimated usage cost in which the oracle subtracts 8,000 read units that the readers recorded. One more case has a read after the last minute of the interval, and the oracle does not subtract it. One more case has a result less than 0, and the oracle uses 0 with the label.
 
 ### AC-HKP-061 — A rehearsal is never evidence
 
@@ -2429,6 +2460,26 @@ Verifies BR-HKP-066.
 - A rehearsal package as the source of a value (the derivation tool refuses).
 
 Golden — a rehearsal directory with 9 load probes, 7 variant validations and 1 run gives these three numbers in the study results file.
+
+### AC-HKP-062 — A refused release keeps its unit
+
+Verifies BR-HKP-067.
+
+- **Given** a reservation of `DIRECT_UPDATE` whose buyer the payment provider declined
+- **And** a stock store that refuses each attempt of the write that puts the unit back
+- **When** the purchase attempt ends and the hold time passes
+- **Then** the reservation stays open until the stock store accepts the write
+- **And** the unit is an available unit again one time, and the variant then closes the reservation as released.
+
+**Verification:** integration — for each variant, with a local stock store that refuses writes. Cases:
+
+- A release that the stock store refuses on the purchase path and accepts for the closer (one unit back).
+- A release that the stock store refuses two times for the closer and then accepts (one unit back).
+- The write that closes the reservation does not succeed after the unit is back (no second unit).
+- `DIRECT_UPDATE` takes a unit, cannot write the reservation record, and the stock store refuses the write that puts the unit back (a durable record names the unit, and the closer puts it back).
+- A write to the stock store with an unknown result (no second write, and the record stays open).
+
+Golden — a `DIRECT_UPDATE` trial with 10,495 units taken, 495 units back on the purchase path and 53 refused writes. After the closer, the stock snapshot shows 53 available units and 0 open reservations. BR-HKP-006 is `pass`, and the lost sales are 53.
 
 ## Non-Goals
 
@@ -2589,12 +2640,13 @@ The runner records one event in the coordination journal for each of these steps
 18. One prime request for each environment does not make the code fully warm. In probe 5, the first requests of the burst were 35 milliseconds, and later requests were 12 milliseconds.
 
 19. Rehearsals in the cloud came before the first evidence. They changed the implementation and showed that the prime wave is necessary. The study results file gives their number.
+20. A unit that a variant puts back after the burst is an available unit that no buyer can get. The lost sales of a trial contain these units.
 
 ## Open Questions
 
 The load generator host and its tool are a choice of the implementation. The load probe of BR-HKP-035 resolves by experiment if that choice can send the `PEAK` schedule.
 
-The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. No question stays open.
+The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. The revision of 2026-11-16 recorded the decisions OQ-HKP-016, OQ-HKP-017 and OQ-HKP-018. One question stays open: OQ-HKP-019.
 
 ### OQ-HKP-001 — Code and name of the capability (RETIRED)
 
@@ -2673,6 +2725,33 @@ With the price inputs of OR-HKP-009 and a memory size of 512 MB, the writer esti
 - Decision: the study results file gives the number of rehearsals of each kind. This number is a statement of the operator, because the rehearsal directory is local.
 - Resolved by: BR-HKP-066.
 
+### OQ-HKP-016 — Prime wave on the first probe route (RETIRED)
+
+- Decision: the first part of the load probe has no prime wave. In five rehearsal probes with no prime wave, that route answered 50,000 of 50,000 requests. With a prime wave, 600 requests reached 340 to 430 execution environments, because the function answers fast.
+- Resolved by: BR-HKP-035, BR-HKP-036 and BR-HKP-064.
+
+### OQ-HKP-017 — Units that `DIRECT_UPDATE` lost in rehearsals (RETIRED)
+
+- Decision: this was a defect of the implementation and not a result of the study. The variant closed a reservation as released, and then the stock store refused the write that puts the unit back. In four rehearsal trials, the lost units (42, 37, 53 and 46) were equal to the declined buyers with an `ERROR` answer. No write had an unknown result.
+- Resolved by: BR-HKP-067 and AC-HKP-062.
+
+### OQ-HKP-018 — Documented limits and reader capacity after the first full rehearsal (RETIRED)
+
+- Decision: the row `DL-8` is not comparable. The row `DL-10` gives the burst capacity of DynamoDB. The oracle subtracts only the reads of the apparatus that are in the interval of the counters.
+- Resolved by: OR-HKP-007 and BR-HKP-065.
+
+### OQ-HKP-019 — Maximum concurrency of the consumer of `QUEUE_FIRST`
+
+The value of 20 in OR-HKP-004 has no measurement. Rehearsals with 2, 5, 10 and 20 sold the lot in 546, 333, 287 and 367 seconds. They had 20,714 to 50,333 transaction conflicts for 10,000 tickets.
+
+In these rehearsals, the consumer did the 10 messages of a batch at the same time. The stock item then had 10 times more reservation operations in progress than the maximum concurrency. BR-HKP-033 now tells the consumer to do them one after the other. New rehearsals with this rule give the value.
+
+Lambda also showed more concurrent executions of the consumer than the maximum concurrency of the mapping: 4, 6 and 12 for 2, 5 and 10. The cause is not known. This is a question for the Lambda team.
+
+- Why unresolved: no rehearsal has the new rule of BR-HKP-033.
+- Decision needed from: the owner, with the results of the new rehearsals.
+- Blocks: the first variant validation of `QUEUE_FIRST` that is not a rehearsal.
+
 ## External Sources
 
 These sources give the documented behavior that the hypotheses and OR-HKP-007 use. They do not give the business rules.
@@ -2680,7 +2759,7 @@ These sources give the documented behavior that the hypotheses and OR-HKP-007 us
 | Source | Behavior that this study uses | Retrieved |
 |---|---|---|
 | [DynamoDB: partition key design](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html) | Each partition gives a maximum of 3,000 read units and 1,000 write units for each second | 2026-11-09 |
-| [DynamoDB: burst and adaptive capacity](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html) | Adaptive capacity can isolate one item, and that item gets no more than the partition maximum | 2026-11-09 |
+| [DynamoDB: burst and adaptive capacity](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html) | Adaptive capacity can isolate one item, and that item gets no more than the partition maximum. DynamoDB keeps up to 300 seconds of unused read and write capacity for bursts. A burst can use it faster than the capacity for each second | 2026-11-16 |
 | [DynamoDB: transactions, how it works](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html) | A transactional write uses 2 write units for each item. Concurrent transactions on one item cancel with `TransactionCanceledException`. The SDKs do not retry that exception. A canceled transaction uses capacity | 2026-11-09 |
 | [DynamoDB: working with items](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html) | A conditional write whose condition is false uses write capacity. A conditional update is the safe form of a counter | 2026-11-09 |
 | [DynamoDB: key range throughput exceeded](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/throttling-key-range-limit-exceeded-mitigation.html) | The throttle reason `TableWriteKeyRangeThroughputExceeded` and the metric `WriteKeyRangeThroughputThrottleEvents` | 2026-11-09 |

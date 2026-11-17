@@ -1309,7 +1309,7 @@ The load generator MUST operate in the Region of the variants. It MUST NOT use t
 
 ### BR-HKP-064 — Prime wave before a burst
 
-Before each burst to a purchase function that answers synchronously, the load generator MUST send one prime wave. This rule applies to the purchase functions of `DIRECT_TRANSACTION`, `DIRECT_UPDATE` and `HOT_TIER`, and to the function of the second probe route.
+Before each burst to a purchase function that answers synchronously, the load generator MUST send one prime wave. This rule applies to the purchase functions of `DIRECT_TRANSACTION`, `DIRECT_UPDATE`, `HOT_TIER` and `SHARDED_UPDATE`, and to the function of the second probe route.
 
 The first probe route MUST have no prime wave. Its function only answers and opens no connection. It answers fast, and Lambda then uses one execution environment for more than one request of a wave.
 
@@ -1444,7 +1444,7 @@ lot_size =  2 * arrival_rate
 
 `PEAK` obeys these two formulas. The rate series is the six rate scenarios and `PEAK`, in the sequence of their arrival rates.
 
-The two rate runs have no `PEAK` trial. The three `PEAK` trials of the canonical run are the `PEAK` point of the rate series. A variant serves the `PEAK` point only when it serves each of these three trials.
+The two rate runs have no `PEAK` trial. The three `PEAK` trials of the canonical run are the `PEAK` point of the rate series. A variant serves the `PEAK` point only when it serves each of these three trials. A service condition is `true` at the `PEAK` point only when it is `true` in each of these three trials.
 
 The values of each rate scenario MUST agree with OR-HKP-011.
 
@@ -1546,7 +1546,7 @@ Each extension run MUST obey the safety limits of OR-HKP-014.
 
 ### BR-HKP-075 — Trials of the repeat run
 
-`REPEAT_RUN` MUST come after the two rate runs. The comparison of each rate run MUST be `eligible`. The manifest of `REPEAT_RUN` MUST record the digest of the package index of each rate run.
+`REPEAT_RUN` MUST come after the two rate runs. The comparison of each rate run MUST be `eligible`. The manifest of `REPEAT_RUN` MUST record the digest of the package index of each rate run and of the canonical run.
 
 For each variant whose break rate is not `none`, `REPEAT_RUN` MUST have:
 
@@ -1558,7 +1558,7 @@ The `CONTROL` trials MUST be the first trials of the run. The other trials MUST 
 
 A trial at the arrival rate 5,000 MUST be a `PEAK` trial.
 
-Admission MUST derive this list from the packages of the two rate runs. Admission MUST reject a manifest with a different list.
+Admission MUST derive this list from the packages of the two rate runs and of the canonical run. Admission MUST reject a manifest with a different list.
 
 `REPEAT_RUN` MUST have the variant digests of the two rate runs. The two rate runs MUST have the same variant digests.
 
@@ -1580,7 +1580,9 @@ The reservation operation MUST be one conditional `UpdateItem` call on one shard
 
 IF the shard has no available unit, THEN the purchase function MUST do the call on the next shard. The next shard has the next index, and the first index follows the last index.
 
-The purchase function MUST call each shard one time at most for one purchase attempt. The final outcome MUST be `SOLD_OUT` only when each shard has a memo or gave no available unit in this purchase attempt.
+The purchase function MUST go to the next shard only for a shard that has no available unit. For a throttle, an error or an unknown result of a shard call, the purchase function MUST do what `DIRECT_UPDATE` does for its reservation operation.
+
+The purchase function MUST call each shard one time at most for one purchase attempt. A new attempt of the retry policy on the same shard is not a second call. The final outcome MUST be `SOLD_OUT` only when each shard has a memo or gave no available unit in this purchase attempt.
 
 The execution environment MUST keep one sold-out memo for each shard. It MUST NOT call a shard during the memo time of that shard. WHEN each shard has a memo, the execution environment MUST answer `SOLD_OUT` with no stock operation.
 
@@ -1612,9 +1614,11 @@ After that reservation operation, the purchase function MUST do no call to a dat
 
 The fault MUST apply only to the first execution of a purchase attempt. For `QUEUE_FIRST`, the fault MUST apply only when the receive count of the message is 1.
 
-The trial configuration of the purchase function MUST give the fault values. A purchase function with no fault values in its configuration MUST have no fault stop.
+The trial configuration of the purchase function MUST give the fault values and the `sale_id` of the trial. A purchase function with no fault values in its configuration MUST have no fault stop.
 
-A prime buyer of a `PEAK_STOP` trial MUST NOT be a fault buyer.
+The fault MUST apply only to a purchase attempt for that `sale_id`. A prime purchase attempt has a prime sale, and the fault does not apply to it.
+
+The prime wave and the load generator of a `PEAK_STOP` trial MUST be the same as for a `PEAK` trial.
 
 A variant MUST have no new mechanism that finds or repairs a fault stop. BR-HKP-027 and BR-HKP-067 give its only mechanisms.
 
@@ -1629,10 +1633,10 @@ lost_units = max(0, L - available_units - open_reservations - count(tickets wher
 For each `valid` `PEAK_STOP` trial, the oracle MUST also count the fault buyers in each of these three groups:
 
 - fault buyers with a ticket.
-- fault buyers with a charge, no refund and no ticket.
-- fault buyers with no charge and no ticket.
+- fault buyers with a net charge and no ticket.
+- fault buyers with no net charge and no ticket.
 
-The oracle MUST find the fault buyers from the load journal and the fault rule of BR-HKP-077. The oracle MUST NOT use the telemetry of a fault stop.
+Each fault buyer is in one group and only one. The oracle MUST find the fault buyers from the load journal and the fault rule of BR-HKP-077. The oracle MUST NOT use the telemetry of a fault stop.
 
 ### BR-HKP-079 — Extension results file and replay
 
@@ -1644,7 +1648,9 @@ The file MUST list each extension run, each load probe and each variant validati
 
 The file MUST give the break rate of each variant and each `break_rate_confirmed` value.
 
-The verifier MUST do a replay of each package of the canonical run with the oracle of the extension. Each rule result, each trial verdict and each measure of BR-HKP-008 through BR-HKP-013 MUST be equal to the frozen value.
+The verifier MUST do a replay with the oracle of the extension. The replay MUST have the package of the canonical run and the packages of the four variant validations that it selected. A load probe has no replay.
+
+In the replay, each rule result, each trial verdict and each measure of BR-HKP-008 through BR-HKP-013 MUST be equal to the frozen value.
 
 The file MUST contain the record of that replay. The file MUST give the results of the `PEAK` trials of the canonical run with the label `canonical_run`.
 
@@ -1652,7 +1658,7 @@ IF a replay gives a different value, THEN the tool MUST stop with an error and M
 
 IF the oracle changes after an extension run, THEN the operator MUST add an entry to the witness record (BR-HKP-048). The verifier MUST then do a replay of each earlier extension package with the same rule.
 
-The tool MUST refuse a package whose oracle digest has no entry in the witness record.
+The tool MUST read the witness record from the file `witness/study-2.jsonl` of the checkout. The tool MUST record the SHA-256 digest of that file. The tool MUST refuse a package whose oracle digest has no entry in the witness record.
 
 ### BR-HKP-080 — Eligibility and completion of the extension
 
@@ -1790,7 +1796,7 @@ Each row gives a value that an AWS document gives. External Sources gives the do
 
 | Row | Service | Documented limit | Value | Variants | Value of the study to compare |
 |---|---|---|---:|---|---|
-| `DL-1` | DynamoDB | Maximum write throughput of one partition | 1,000 write units for each second | `DT`, `DU`, `QF` | Not comparable at 1 second. Telemetry explains. |
+| `DL-1` | DynamoDB | Maximum write throughput of one partition | 1,000 write units for each second | `DT`, `DU`, `QF`, `SU` | Not comparable at 1 second. Telemetry explains. |
 | `DL-2` | DynamoDB | Write units of one transactional write of an item of 1 KB or less | 2 | `DT`, `QF` | Not comparable. |
 | `DL-3` | DynamoDB | Derived from `DL-1` and `DL-2`: transactional writes of one item | 500 for each second | `DT` | `peak_ticket_rate` |
 | `DL-4` | DynamoDB | Derived from `DL-1`: standard writes of one item of 1 KB or less | 1,000 for each second | `DU` | `peak_ticket_rate` |
@@ -1798,10 +1804,12 @@ Each row gives a value that an AWS document gives. External Sources gives the do
 | `DL-6` | API Gateway | Account throttle for one Region | 10,000 requests for each second, bucket of 5,000 | All | Arrival rate of the scenario |
 | `DL-7` | Lambda with a standard queue | Concurrent batches of one event source mapping | Starts at 5, adds 300 for each minute, maximum 1,250 | `QF` | Maximum concurrency of OR-HKP-004 |
 | `DL-8` | Lambda | Default quota of concurrent executions | 1,000 | All | Not comparable. The quota of an account is not a limit of the service. The condition statement gives the quota that admission recorded. |
-| `DL-9` | Lambda | Synchronous invocation requests of a function with provisioned concurrency | 10 for each second for each unit: 6,000 for 600 units | `DT`, `DU`, `HT` | Arrival rate of the scenario |
-| `DL-10` | DynamoDB | Burst capacity | Up to 300 seconds of unused read and write capacity | `DT`, `DU`, `QF` | Not comparable. It can explain a `peak_ticket_rate` that is more than `DL-3` or `DL-4` for a short time. |
+| `DL-9` | Lambda | Synchronous invocation requests of a function with provisioned concurrency | 10 for each second for each unit: 6,000 for 600 units | `DT`, `DU`, `HT`, `SU` | Arrival rate of the scenario |
+| `DL-10` | DynamoDB | Burst capacity | Up to 300 seconds of unused read and write capacity | `DT`, `DU`, `QF`, `SU` | Not comparable. It can explain a `peak_ticket_rate` that is more than `DL-3` or `DL-4` for a short time. |
 
 The rate of the `CONTROL` scenario is 20 purchase attempts for each second. It is below `DL-3`, `DL-4`, `DL-5` and `DL-6`.
+
+`SU` is `SHARDED_UPDATE`. It has no row for the writes of one item, because the study does not measure the ticket rate of one shard.
 
 ### OR-HKP-008 — Worked example for the measures
 
@@ -3059,6 +3067,7 @@ Verifies BR-HKP-072.
 
 - A rate run whose comparison is not `eligible` (no break rate).
 - A variant that serves two of the three `PEAK` trials of the canonical run (it does not serve the `PEAK` point).
+- A variant with `fair` = `false` in one of the three `PEAK` trials (`fair` is `false` at the `PEAK` point).
 - Two repeat trials at the break rate with `serves` = `false` and two at the next smaller rate with `serves` = `true` (`break_rate_confirmed` is `true`).
 - One repeat trial at the break rate with `serves` = `true` (`break_rate_confirmed` is `false`).
 - One repeat trial at the next smaller rate with `serves` = `false` (`break_rate_confirmed` is `false`).
@@ -3119,6 +3128,7 @@ Verifies BR-HKP-075.
 - A variant digest that is different from the digest of the rate runs (rejected).
 - Two rate runs with different variant digests (rejected).
 - A break rate of 5,000 (two trials at `PEAK` and two trials at `RATE_2500`).
+- A manifest with no digest of the package index of the canonical run (rejected).
 
 ### AC-HKP-069 — `SHARDED_UPDATE` goes to the next shard
 
@@ -3134,6 +3144,7 @@ Verifies BR-HKP-076.
 
 - The first shard has a unit (one call).
 - Nine shards have no unit and the tenth shard has one (ten calls and `TICKET`).
+- A throttle of the first shard after each attempt of the retry policy (`ERROR`, and no call to the next shard).
 - No shard has a unit (ten calls and `SOLD_OUT`).
 - A shard with a memo (no call to that shard during the memo time).
 - Each shard has a memo (`SOLD_OUT` with no stock operation).
@@ -3171,7 +3182,8 @@ Verifies BR-HKP-077.
 - A buyer that is not a fault buyer (no fault stop).
 - A configuration with no fault values and the arrival sequence 125 (no fault stop).
 - A `QUEUE_FIRST` message of a fault buyer with a receive count of 2 (no fault stop, and one final outcome).
-- A prime buyer that is a fault buyer (the runner rejects the prime sales).
+- A prime purchase attempt with the arrival sequence 125 in a `PEAK_STOP` trial (no fault stop, and HTTP status 200).
+- A purchase attempt with the arrival sequence 125 for a `sale_id` that is not in the configuration (no fault stop).
 - A `CONTROL` trial of `STOP_RUN` (its configuration has no fault values).
 - A variant of the canonical run whose source has a change that is not the fault point (the static check rejects the variant).
 
@@ -3190,8 +3202,10 @@ Verifies BR-HKP-078.
 - 9,960 tickets and 40 available units (`lost_units` is 0, and BR-HKP-006 is `pass`).
 - 10,001 tickets (`lost_units` is 0, and BR-HKP-002 is `fail`).
 - A fault buyer with a ticket (the first group).
-- A fault buyer with a charge, no refund and no ticket (the second group, and BR-HKP-003 is `fail`).
+- A fault buyer with a net charge and no ticket (the second group, and BR-HKP-003 is `fail`).
 - A fault buyer with no charge and no ticket (the third group).
+- A fault buyer with a charge, a refund of the same amount and no ticket (the third group).
+- A `PEAK_STOP` trial (the three groups contain 200 fault buyers).
 - Telemetry that shows 41 fault stops (the oracle result does not change).
 - A trial that is not `valid` (`null`).
 
@@ -3213,6 +3227,8 @@ Verifies BR-HKP-079.
 - A package of an extension run that is not eligible (refused).
 - Two oracle digests in the extension with an equal replay (the tool writes the file).
 - A `PEAK` trial of the canonical run (the file gives it with the label `canonical_run`).
+- A replay with no package of a variant validation of the canonical run (refused).
+- A checkout with no witness file (refused).
 
 ### AC-HKP-074 — When the extension is complete
 
@@ -3357,14 +3373,15 @@ A rejection MUST contain the ID of the criterion that rejected the action. The r
 ### CTR-HKP-014 — Extension run summary
 
 - **Output, science:** the run identity, the name of the extension run, the condition statement, each trial result and the comparison eligibility with its reasons.
-- **Output for `REPEAT_RUN`:** the digest of the package index of each rate run and each `break_rate_confirmed` value.
+- **Output for `REPEAT_RUN`:** the digest of the package index of each rate run and of the canonical run, and each `break_rate_confirmed` value.
 - **Output, documentation and operations:** the same values as CTR-HKP-008.
 - The summary MUST NOT contain the package eligibility.
 
 ### CTR-HKP-015 — Extension results file
 
 - **Output:** `results/study-2/results-extension.json`. It has each selected package of the extension with the digest of its package index. It has each value with its source path and digest.
-- **Output, replay:** the oracle digest of the extension, the digest of each package of the canonical run, and the result of the replay.
+- **Output, replay:** the oracle digest of the extension, the digest of each package of the replay and the result of the replay.
+- **Output, witness:** the SHA-256 digest of the witness file.
 - **Output, rate series:** the break rate of each variant, the smallest arrival rate at which each service condition is `false`, and the labels.
 - **Output, completion:** each extension run with `complete` or `not_complete`, and the completion of the extension.
 - The tool MUST NOT write `results/study-2/results.json`.
@@ -3584,7 +3601,7 @@ Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10.
 
 ### OQ-HKP-026 — Form of the fault (RETIRED)
 
-- Decision: the process of the purchase function ends after the reservation operation takes a unit. The fault applies to 1 buyer of each 250, only on the first execution.
+- Decision: the process of the purchase function ends after the reservation operation takes a unit. The fault applies to 1 buyer of each 250, only on the first execution and only for the sale of the trial.
 - Resolved by: BR-HKP-077 and OR-HKP-016.
 
 ## External Sources

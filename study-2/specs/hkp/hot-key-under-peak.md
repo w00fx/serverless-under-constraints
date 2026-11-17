@@ -723,6 +723,8 @@ All variants MUST use the retry policy of OR-HKP-003.
 
 The AWS SDK clients of a variant MUST use the declared retry mode and the declared maximum number of attempts.
 
+The write that puts a unit back is an exception. The variant MUST NOT send it again after a result that it does not know (BR-HKP-067).
+
 WHEN a reservation operation gets a transaction conflict, the variant MUST do it again with the declared conflict policy. WHEN the purchase function used all attempts of the conflict policy, the purchase attempt MUST end with an error response.
 
 The payment provider MUST do the ledger write of a charge request one time and MUST NOT do it again automatically. A purchase function that sends a charge request again MUST use the same `payment_request_id`.
@@ -748,7 +750,7 @@ The stock store MUST be one DynamoDB item for each sale. The reservation operati
 
 The variant MUST write the reservation record of the buyer with a different call. The reservation operation and that call are not one atomic operation.
 
-`DIRECT_UPDATE` also does a release with two calls. BR-HKP-067 gives the rule for their sequence and for a refused write.
+`DIRECT_UPDATE` also does a release with more than one call. BR-HKP-067 gives the rule for their sequence and for a refused write.
 
 *Source for the pattern: Amazon DynamoDB Developer Guide, "Working with items", conditional writes. AWS Database Blog, "Implement resource counters with Amazon DynamoDB", approach "Atomic counters" with a condition.*
 
@@ -765,6 +767,8 @@ The event source mapping MUST have the batch size, the maximum concurrency and t
 The consumer function MUST give the same final outcome for a message that it receives more than one time.
 
 The consumer function MUST do the purchase attempts of one batch one after the other. One execution of the consumer MUST NOT have two reservation operations in progress at the same time. The event source mapping then controls how many reservation operations are in progress on the stock item.
+
+The consumer function MUST NOT start a purchase attempt in the last 2 seconds before its timeout (OR-HKP-003). The consumer function MUST give the other messages of the batch back to the queue.
 
 *The stock store has one item and no shards. All variants have the same hot key.*
 
@@ -1374,6 +1378,7 @@ A canonical run MUST use the values of the ratified revision with no change. A c
 |---|---:|
 | Timeout of a purchase function that answers synchronously | 9 seconds |
 | Timeout of the consumer function of `QUEUE_FIRST` | 30 seconds |
+| Time before its timeout in which the consumer function starts no purchase attempt | 2 seconds |
 | Maximum time of one charge request in the payment provider | 3 seconds |
 | Hold time | 60 seconds |
 | Memo time of the sold-out memo | 1 second |
@@ -1398,7 +1403,7 @@ A canonical run MUST use the values of the ratified revision with no change. A c
 | Provisioned concurrency of a purchase function that answers synchronously | 600 |
 | Reserved and provisioned concurrency of the consumer function | 20 and 20 |
 | Batch size of the event source mapping | 10 |
-| Maximum concurrency of the event source mapping | 20 |
+| Maximum concurrency of the event source mapping | 10 |
 | Batching window of the event source mapping | 0 seconds |
 | Partial batch response | On |
 | Receive limit before the dead-letter queue | 5 |
@@ -2646,7 +2651,7 @@ The runner records one event in the coordination journal for each of these steps
 
 The load generator host and its tool are a choice of the implementation. The load probe of BR-HKP-035 resolves by experiment if that choice can send the `PEAK` schedule.
 
-The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. The revision of 2026-11-16 recorded the decisions OQ-HKP-016, OQ-HKP-017 and OQ-HKP-018. One question stays open: OQ-HKP-019.
+The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. The revision of 2026-11-16 recorded the decisions OQ-HKP-016, OQ-HKP-017 and OQ-HKP-018. The revision of 2026-11-17 recorded the decision OQ-HKP-019. No question stays open.
 
 ### OQ-HKP-001 — Code and name of the capability (RETIRED)
 
@@ -2740,17 +2745,20 @@ With the price inputs of OR-HKP-009 and a memory size of 512 MB, the writer esti
 - Decision: the row `DL-8` is not comparable. The row `DL-10` gives the burst capacity of DynamoDB. The oracle subtracts only the reads of the apparatus that are in the interval of the counters.
 - Resolved by: OR-HKP-007 and BR-HKP-065.
 
-### OQ-HKP-019 — Maximum concurrency of the consumer of `QUEUE_FIRST`
+### OQ-HKP-019 — Maximum concurrency of the consumer of `QUEUE_FIRST` (RETIRED)
 
-The value of 20 in OR-HKP-004 has no measurement. Rehearsals with 2, 5, 10 and 20 sold the lot in 546, 333, 287 and 367 seconds. They had 20,714 to 50,333 transaction conflicts for 10,000 tickets.
+- Decision: the maximum concurrency of the event source mapping is 10. Rehearsals of 2026-11-16 and 2026-11-17 with the rule of BR-HKP-033 gave the table below for the `PEAK` scenario. Each trial was valid and had the verdict `pass`, 10,000 tickets, no lost sale and no dead-letter message. The value of 10 gave the smallest 99th percentile of the final outcome delay. No smaller value was in 10 % of it.
+- Resolved by: OR-HKP-004 and BR-HKP-033.
 
-In these rehearsals, the consumer did the 10 messages of a batch at the same time. The stock item then had 10 times more reservation operations in progress than the maximum concurrency. BR-HKP-033 now tells the consumer to do them one after the other. New rehearsals with this rule give the value.
+| Maximum concurrency | Transaction conflicts | Sale duration | Final outcome delay, 50th percentile | Final outcome delay, 99th percentile | Fairness count | Messages that the consumer received again |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2 | 488 | 643.7 seconds | 695.7 seconds | 926.5 seconds | 4,856 | 38 |
+| 5 | 2,447 | 423.6 seconds | 296.4 seconds | 380.7 seconds | 5,188 | 253 |
+| 10 | 8,184 | 301.9 seconds | 141.5 seconds | 251.0 seconds | 5,260 | 1,251 |
 
-Lambda also showed more concurrent executions of the consumer than the maximum concurrency of the mapping: 4, 6 and 12 for 2, 5 and 10. The cause is not known. This is a question for the Lambda team.
+In the rehearsals before BR-HKP-033 had this rule, the consumer did the 10 messages of a batch at the same time. Rehearsals with 2, 5, 10 and 20 then had 20,714 to 50,333 transaction conflicts for 10,000 tickets.
 
-- Why unresolved: no rehearsal has the new rule of BR-HKP-033.
-- Decision needed from: the owner, with the results of the new rehearsals.
-- Blocks: the first variant validation of `QUEUE_FIRST` that is not a rehearsal.
+Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10. The cause of a number that is more than the maximum concurrency is not known. This is a question for the Lambda team.
 
 ## External Sources
 

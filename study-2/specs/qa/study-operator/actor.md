@@ -14,6 +14,8 @@ The person who operates Study 2 from a clean checkout of committed source. This 
 
 This person knows the command line and AWS. This person does not read the source of the study to understand a result.
 
+The operator can let an agent start an execution.
+
 ## Interfaces
 
 - The operator CLI of CTR-HKP-012.

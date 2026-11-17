@@ -5,12 +5,14 @@ status: ratified     # draft → ratified when a human merges the spec PR
 owner: Raphael Moura
 approved_by: Raphael Moura
 approved_at: 2026-11-15
-provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal.
+provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal. The extension revision of 2026-11-17 adds the extension: rate scenarios, long scenarios, the variant SHARDED_UPDATE and one fault of Result 2. Its questions come from the results of the canonical run of 2026-11-17. The owner accepted its proposals on 2026-11-17.
 ---
 
 # Capability: Study 2 — Evaluate ticket-sale rules under a traffic peak on one hot key
 
 Scope of Result 1: four variants, two scenarios and one lot for each sale. The apparatus has a controlled payment provider, an independent oracle, immutable evidence, cleanup and a leak audit.
+
+The extension revision of 2026-11-17 adds an extension of Result 1 and one fault of Result 2. The section Extension gives its rules.
 
 ## Purpose
 
@@ -39,6 +41,22 @@ The owner records these hypotheses before the first cloud execution. The oracle 
 | H5 | `HOT_TIER` has no lost sales, the shortest sale duration and the largest fairness count. The cache does not throttle commands. | An ElastiCache Serverless cache accepts 30,000 ECPUs for each second for one slot. |
 | H6 | In the `CONTROL` scenario, all four variants obey all business rules and have no lost sales. | The control rate is below each documented limit in OR-HKP-007. |
 
+### Hypotheses of the extension
+
+The owner records these hypotheses before the first cloud execution of the extension. They use the results of the canonical run `05b090ae` of 2026-11-17. The oracle MUST NOT use a hypothesis as an input.
+
+| ID | Hypothesis | Result or documented behavior that the hypothesis uses |
+|---|---|---|
+| H7 | In the rate runs, `DIRECT_TRANSACTION` serves the trials of `RATE_50` and `RATE_100`. Its break rate is 250, and `sold` is `true` at that rate. Its `sold` condition is `false` at `RATE_2500`. | The canonical run gave a peak ticket rate of 157 to 171 and 1,734 to 1,916 tickets for this variant. |
+| H8 | In the rate runs, `DIRECT_UPDATE` serves each trial through `RATE_1000`. Its break rate is 2,500. | The canonical run gave a peak ticket rate of 1,815 to 1,828 for this variant. `DL-4` gives 1,000. |
+| H9 | In the rate runs, `QUEUE_FIRST` has `answered` = `true` at each rate. Its `timely` condition is `false` at `RATE_500` and at each larger rate. Its break rate is not larger than 500. | The canonical run gave a 99th percentile of the final outcome delay of 248 to 254 seconds. Its peak ticket rate was 97 to 102. |
+| H10 | In the rate runs, `HOT_TIER` serves each trial. Its break rate is `none`. | In the canonical run, the three `PEAK` trials of this variant had no lost sale and a fairness count of 9,990 to 9,995. |
+| H11 | In `LONG_PEAK`, `DIRECT_TRANSACTION` sells 9,000 tickets or more. Its sale duration is more than 45 seconds. Its fairness ratio is less than `0.1000`. | A peak ticket rate of 157 to 171 for 60 seconds gives 9,420 to 10,260 tickets. The fairness count of the canonical run was 381 to 448. |
+| H12 | In `LONG_KEY`, the `late_ticket_rate` of `DIRECT_UPDATE` is more than 1,000. | The peak ticket rate of the canonical run. `DL-10` gives burst capacity for up to 300 seconds. |
+| H13 | One or more of the four new `PEAK` trials of `QUEUE_FIRST` has a fairness ratio of less than `0.8000`. Each of these trials has no lost sale and `answered` = `true`. | The canonical run gave the fairness counts 5,300, 9,000 and 9,224. A standard queue has a best-effort sequence. |
+| H14 | In each `PEAK` trial of `SHARD_RUN`, `SHARDED_UPDATE` has `sold`, `fair` and `timely` = `true`. Its `no_outcome_fraction` is smaller than the fraction of `DIRECT_UPDATE` in that run. | Ten shards get approximately 500 purchase attempts for each second for each shard. `DL-4` gives 1,000 for one item. |
+| H15 | In `PEAK_STOP`, no variant breaks BR-HKP-002 through BR-HKP-005. `DIRECT_TRANSACTION`, `QUEUE_FIRST` and `HOT_TIER` obey BR-HKP-006. `DIRECT_UPDATE` and `SHARDED_UPDATE` break BR-HKP-006 and have lost units. | The reservation operation of the first three variants also records the reservation. The two other variants record it with a different call (BR-HKP-067). |
+
 ## Study Boundary
 
 Result 1 includes:
@@ -56,7 +74,15 @@ Result 1 includes:
 - normal cleanup, emergency cleanup and a leak audit.
 - safety limits and later billing amendments.
 
-In Result 2, a component stops during the peak. Result 2 is not part of this revision. A later revision of this spec will add it.
+The extension revision of 2026-11-17 adds the extension. The extension includes:
+
+- six rate scenarios, two long scenarios and the fault scenario `PEAK_STOP`.
+- a fifth variant, `SHARDED_UPDATE`, and its variant validation.
+- six extension runs: `RATE_RUN_A`, `RATE_RUN_B`, `DEPTH_RUN`, `REPEAT_RUN`, `SHARD_RUN` and `STOP_RUN`.
+- the service conditions of each trial and the break rate of each variant.
+- an extension results file with a replay of the canonical run.
+
+In Result 2, a component stops during the peak. The extension has one fault of Result 2: a purchase function that stops (BR-HKP-077). A cache that stops is not a part of this spec (OQ-HKP-024).
 
 ## Capability Language
 
@@ -258,6 +284,40 @@ _Avoid_: Witness tag, pre-registration.
 **Derive**: To get a result from frozen evidence with the fixed rules of this spec.
 
 **Evaluate**: To calculate the result of a rule or of a gate for one trial.
+
+**Extension**: The set of executions that the extension revision of 2026-11-17 adds after the canonical run.
+_Avoid_: Phase 2, follow-up.
+
+**Extension run**: One of the six runs of the extension. It is not the canonical run.
+
+**Rate scenario**: A scenario that has the form of `PEAK` at a smaller arrival rate.
+_Avoid_: Step, load level.
+
+**Rate series**: The six rate scenarios and `PEAK`, in the sequence of their arrival rates.
+_Avoid_: Sweep, ramp.
+
+**Long scenario**: A scenario with a burst of 60 seconds.
+
+**Service condition**: One of four limits on the measures of a trial: `sold`, `fair`, `answered` and `timely`.
+_Avoid_: SLO, threshold, pass mark.
+
+**Serve**: To have all four service conditions true in one trial.
+_Avoid_: Hold, pass, survive.
+
+**Break rate**: The smallest arrival rate of the rate series at which a variant does not serve the trial.
+_Avoid_: Knee, capacity, limit.
+
+**Shard**: One of the stock items of a sale of `SHARDED_UPDATE`.
+_Avoid_: Bucket, partition.
+
+**Fault buyer**: A buyer of a `PEAK_STOP` trial that the fault rule of BR-HKP-077 selects.
+
+**Fault stop**: The end of the process of a purchase function at the fault point of BR-HKP-077.
+_Avoid_: Crash, kill, chaos.
+
+**Lost unit**: A unit that is not an available unit, not a ticket and not in an open reservation at settlement (BR-HKP-006).
+
+**Replay**: An evaluation of a frozen package with a later oracle. It changes no file of the package.
 
 ## Sale Domain
 
@@ -539,7 +599,7 @@ Two tickets with different identifiers for one buyer do not break this rule. BR-
 
 ### BR-HKP-018 — Scenarios
 
-The study MUST have two scenarios and no more.
+The canonical run and each variant validation MUST have two scenarios and no more. BR-HKP-069, BR-HKP-070 and BR-HKP-077 give the scenarios of the extension.
 
 | Scenario | Purpose | Arrival rate compared with the documented limits |
 |---|---|---|
@@ -680,7 +740,7 @@ The hold time MUST agree with OR-HKP-003 for all variants.
 
 ### BR-HKP-028 — Equal treatment
 
-WHEN the study compares variants, all variants MUST have the same declared inputs, except for the differences that BR-HKP-031 through BR-HKP-034 declare.
+WHEN the study compares variants, all variants MUST have the same declared inputs, except for the differences that BR-HKP-031 through BR-HKP-034 and BR-HKP-076 declare.
 
 The equality projection MUST contain at least:
 
@@ -713,7 +773,7 @@ The preparation MUST contain:
 
 A trial MUST NOT start before each preparation of its variant is complete. The trial manifest MUST record the proof that each preparation is complete.
 
-Among the purchase functions of the four variants, only the one of the current trial MUST have reserved concurrency and provisioned concurrency. The runner MUST set the reserved concurrency of the three other purchase functions to 0.
+Among the purchase functions of all variants, only the one of the current trial MUST have reserved concurrency and provisioned concurrency. The runner MUST set the reserved concurrency of each other purchase function to 0.
 
 The preparation MUST NOT change the number of stock items of a sale.
 
@@ -770,7 +830,7 @@ The consumer function MUST do the purchase attempts of one batch one after the o
 
 The consumer function MUST NOT start a purchase attempt in the last 2 seconds before its timeout (OR-HKP-003). The consumer function MUST give the other messages of the batch back to the queue.
 
-*The stock store has one item and no shards. All variants have the same hot key.*
+*The stock store has one item and no shards. The four variants of the canonical run have the same hot key.*
 
 `QUEUE_FIRST` has no prime wave. This is a declared difference.
 
@@ -952,7 +1012,7 @@ The summary MUST name a business rule or a measure as the subject of each result
 
 ### BR-HKP-045 — Study results file
 
-A derivation tool MUST write one study results file from the selected packages. This file is the only source of the numbers of the study.
+A derivation tool MUST write one study results file from the selected packages. This file is the only source of the numbers of the canonical run. BR-HKP-079 gives the file for the numbers of the extension.
 
 Each value in the file MUST have the path of its source file in the package and the SHA-256 digest of that file.
 
@@ -1330,6 +1390,282 @@ A write to the stock store can have a result that the variant does not know. Aft
 
 `DIRECT_UPDATE` has no atomic operation for a unit and its record. In this variant, a write with an unknown result can cause a lost unit or an open reservation at settlement. This is a property of the variant, and the oracle reports it.
 
+## Extension
+
+*The extension revision of 2026-11-17 added the rules of this section. The questions come from the results of the canonical run of 2026-11-17.*
+
+The canonical run measured one arrival rate above the documented limits. It did not show the arrival rate at which a variant stops to serve the sale. The extension measures that rate. It also adds the documented remedy for a hot key and one fault.
+
+### BR-HKP-068 — Extension runs
+
+The extension MUST have these six extension runs and no more.
+
+| Extension run | Purpose |
+|---|---|
+| `RATE_RUN_A` | To measure the four variants of the canonical run in `RATE_50`, `RATE_100` and `RATE_250` |
+| `RATE_RUN_B` | To measure the same four variants in `RATE_500`, `RATE_1000` and `RATE_2500` |
+| `DEPTH_RUN` | To measure two long scenarios and four more `PEAK` trials of `QUEUE_FIRST` |
+| `REPEAT_RUN` | To do the trials near each break rate again |
+| `SHARD_RUN` | To measure `SHARDED_UPDATE` in the `PEAK` scenario |
+| `STOP_RUN` | To measure each of the five variants when a purchase function stops |
+
+Each rule of this spec for a canonical run MUST also apply to an extension run. The only differences are the differences that this section declares.
+
+An extension run MUST select a load probe that obeys BR-HKP-037. It MUST select one verified variant validation for each variant that it has.
+
+The operator MUST do the variant validation of `SHARDED_UPDATE` before the first extension run that has this variant.
+
+In each trial of the extension, these inputs MUST be the same as in the canonical run:
+
+- the preparation of BR-HKP-029 and the prime wave of BR-HKP-064.
+- the buyer model of BR-HKP-020, the buyer deadline and the decline modulus.
+- the hold time, the memo time and the retry policy.
+- the ticket price and the currency.
+
+An execution of the extension MUST NOT change a package, a result or a file of the canonical run.
+
+The condition statement of an extension run MUST also contain:
+
+- the values of OR-HKP-011 for each scenario of the run.
+- the limits of the service conditions of OR-HKP-012.
+- the shard values of OR-HKP-015, for a run that has `SHARDED_UPDATE`.
+- the fault values of OR-HKP-016, for `STOP_RUN`.
+
+### BR-HKP-069 — Rate scenarios
+
+The extension MUST have six rate scenarios: `RATE_50`, `RATE_100`, `RATE_250`, `RATE_500`, `RATE_1000` and `RATE_2500`. The number in each name is the arrival rate in purchase attempts for each second.
+
+Each rate scenario MUST have the burst duration of `PEAK`.
+
+```text
+buyers   = 10 * arrival_rate
+lot_size =  2 * arrival_rate
+```
+
+`PEAK` obeys these two formulas. The rate series is the six rate scenarios and `PEAK`, in the sequence of their arrival rates.
+
+The two rate runs have no `PEAK` trial. The three `PEAK` trials of the canonical run are the `PEAK` point of the rate series. A variant serves the `PEAK` point only when it serves each of these three trials.
+
+The values of each rate scenario MUST agree with OR-HKP-011.
+
+### BR-HKP-070 — Long scenarios
+
+The extension MUST have two long scenarios: `LONG_PEAK` and `LONG_KEY`. Each MUST have a burst duration of 60 seconds.
+
+`LONG_PEAK` MUST have the arrival rate and the lot size of `PEAK`. It shows a sale in which buyers continue to arrive after the first 10 seconds. Only `DIRECT_TRANSACTION` MUST have `LONG_PEAK` trials.
+
+*In the canonical run, only `DIRECT_TRANSACTION` had lost sales of more than 1 % of the lot.*
+
+`LONG_KEY` MUST have a lot that is not smaller than its number of buyers. The sale then cannot end during the burst. It shows the ticket rate of one stock item for 60 seconds. Only `DIRECT_UPDATE` MUST have `LONG_KEY` trials.
+
+*In the canonical run, only `DIRECT_UPDATE` had a peak ticket rate of more than its documented limit.*
+
+Each buyer of a long scenario MUST make one purchase attempt (BR-HKP-020). A long scenario does not show a buyer that sends a purchase attempt again.
+
+The load probe sends no burst of 60 seconds. The load fidelity gate of BR-HKP-022 decides if a trial of a long scenario can be used.
+
+The values of each long scenario MUST agree with OR-HKP-011.
+
+### BR-HKP-071 — Service conditions
+
+For each trial whose trial validity is `valid`, the oracle MUST calculate four service conditions.
+
+```text
+lost_sales_fraction = lost_sales / L
+no_outcome_fraction = count(buyers with no final outcome) / count(buyers)
+
+sold     = lost_sales_fraction        <= max_lost_sales_fraction
+fair     = fairness_ratio             >= min_fairness_ratio
+answered = no_outcome_fraction        <= max_no_outcome_fraction
+timely   = final_outcome_delay_p99_ms <= buyer_deadline_ms
+serves   = sold and fair and answered and timely
+```
+
+A buyer has a final outcome when BR-HKP-011 gives a final outcome delay for that buyer.
+
+The limits MUST agree with OR-HKP-012. The oracle MUST compare each fraction before it rounds that fraction.
+
+The oracle MUST give each fraction as a decimal string with four decimal places. The oracle MUST round each fraction half up.
+
+IF no buyer of the trial has a final outcome, THEN `timely` MUST be `false`.
+
+A service condition is a measure. It MUST NOT change a rule result or a trial verdict.
+
+### BR-HKP-072 — Break rate
+
+The verifier MUST derive one break rate for each variant of the two rate runs. It MUST use the oracle results of the two rate runs and the replay of the canonical run (BR-HKP-079).
+
+```text
+break_rate = the smallest arrival rate of the rate series whose trial has serves = false
+break_rate = none     when each trial of the variant in the rate series has serves = true
+```
+
+For each of the four service conditions, the verifier MUST also give the smallest arrival rate at which the condition is `false`.
+
+IF a trial at an arrival rate larger than the break rate has `serves` = `true`, THEN the result MUST have the label `not_monotonic`.
+
+After `REPEAT_RUN`, the verifier MUST derive `break_rate_confirmed` for each variant that has trials in that run.
+
+```text
+break_rate_confirmed = true
+only if each repeat trial at the break rate has serves = false
+and each repeat trial at the next smaller arrival rate has serves = true
+```
+
+The verifier MUST derive a break rate only when the comparison of each of the two rate runs is `eligible`.
+
+### BR-HKP-073 — Ticket rate series
+
+For each `valid` trial of a long scenario, the oracle MUST give the number of tickets in each interval of 1 second. The intervals are the intervals of BR-HKP-012.
+
+```text
+ticket_rate_series[k] = count(tickets whose issued_at is in interval k)        # k from 1
+late_ticket_rate      = median(ticket_rate_series[31] through ticket_rate_series[60])
+```
+
+The oracle MUST give `late_ticket_rate` as a decimal string with one decimal place. IF the series has fewer than 60 intervals, THEN `late_ticket_rate` MUST be `null`.
+
+For each `LONG_KEY` trial, the run summary MUST have a row that compares `late_ticket_rate` with `DL-4`. BR-HKP-044 gives the relations of that row.
+
+### BR-HKP-074 — Composition and sequence of the extension runs
+
+Each extension run MUST start with one `CONTROL` trial for each variant that it has. The other trials and their sequence MUST agree with OR-HKP-013.
+
+| Extension run | Trials |
+|---|---:|
+| `RATE_RUN_A` | 16 |
+| `RATE_RUN_B` | 16 |
+| `DEPTH_RUN` | 11 |
+| `SHARD_RUN` | 6 |
+| `STOP_RUN` | 15 |
+| `REPEAT_RUN` | BR-HKP-075 gives the number |
+
+The runner MUST do the trials one at a time. The runner MUST wait for the gap of OR-HKP-003 between two trials (BR-HKP-039).
+
+Each extension run MUST obey the safety limits of OR-HKP-014.
+
+### BR-HKP-075 — Trials of the repeat run
+
+`REPEAT_RUN` MUST come after the two rate runs. The comparison of each rate run MUST be `eligible`. The manifest of `REPEAT_RUN` MUST record the digest of the package index of each rate run.
+
+For each variant whose break rate is not `none`, `REPEAT_RUN` MUST have:
+
+- one `CONTROL` trial.
+- two trials at the break rate.
+- two trials at the next smaller arrival rate of the rate series, when the series has one.
+
+The `CONTROL` trials MUST be the first trials of the run. The other trials MUST be in two passes. In each pass, the arrival rates increase. For one arrival rate, the variants are in the sequence `DT`, `DU`, `QF`, `HT`.
+
+A trial at the arrival rate 5,000 MUST be a `PEAK` trial.
+
+Admission MUST derive this list from the packages of the two rate runs. Admission MUST reject a manifest with a different list.
+
+`REPEAT_RUN` MUST have the variant digests of the two rate runs. The two rate runs MUST have the same variant digests.
+
+IF each variant has the break rate `none`, THEN the extension has no `REPEAT_RUN`.
+
+### BR-HKP-076 — Variant `SHARDED_UPDATE`
+
+*This variant is the documented remedy for a hot key. It has no hot key. It shows what the remedy gives under the same peak.*
+
+The front door of `SHARDED_UPDATE` MUST call the purchase function synchronously.
+
+The stock store MUST have the number of DynamoDB items of OR-HKP-015 for each sale. Each item is a shard. The partition key of a shard MUST contain the `sale_id` and the shard index.
+
+The runner MUST divide the lot between the shards with the formula of OR-HKP-015.
+
+The first shard of a buyer MUST be the shard that the formula of OR-HKP-015 gives for its arrival sequence.
+
+The reservation operation MUST be one conditional `UpdateItem` call on one shard. That call decreases the available units of the shard by 1.
+
+IF the shard has no available unit, THEN the purchase function MUST do the call on the next shard. The next shard has the next index, and the first index follows the last index.
+
+The purchase function MUST call each shard one time at most for one purchase attempt. The final outcome MUST be `SOLD_OUT` only when each shard has a memo or gave no available unit in this purchase attempt.
+
+The execution environment MUST keep one sold-out memo for each shard. It MUST NOT call a shard during the memo time of that shard. WHEN each shard has a memo, the execution environment MUST answer `SOLD_OUT` with no stock operation.
+
+The variant MUST write the reservation record of the buyer with a different call. The record MUST name the shard of its unit. A release MUST put the unit back to that shard.
+
+BR-HKP-067 applies to this variant. `SHARDED_UPDATE` has no atomic operation for a unit and its record.
+
+The stock snapshot MUST give the available units of each shard. The `available_units` of the snapshot MUST be their sum.
+
+The stock table MUST have the default warm throughput of a new on-demand table (OR-HKP-004).
+
+This variant has three declared differences: the number of stock items, more than one call in a reservation operation, and one memo for each shard.
+
+*Source for the pattern: Amazon DynamoDB Developer Guide, "Using write sharding to distribute workloads evenly in your DynamoDB table", sharding with calculated suffixes.*
+
+### BR-HKP-077 — Fault: a purchase function that stops
+
+The scenario `PEAK_STOP` MUST have each value of `PEAK` and the fault of this rule. No other scenario MUST have a fault.
+
+```text
+fault_buyer(b) = (arrival_sequence(b) mod fault_modulus = fault_remainder)
+```
+
+The fault values MUST agree with OR-HKP-016. With these values, each fault buyer is an eligible buyer.
+
+WHEN the reservation operation takes a unit for a fault buyer, the purchase function MUST end its process immediately. This is a fault stop.
+
+After that reservation operation, the purchase function MUST do no call to a data store, to the payment provider or to the front door. It MUST write one line of telemetry before the fault stop.
+
+The fault MUST apply only to the first execution of a purchase attempt. For `QUEUE_FIRST`, the fault MUST apply only when the receive count of the message is 1.
+
+The trial configuration of the purchase function MUST give the fault values. A purchase function with no fault values in its configuration MUST have no fault stop.
+
+A prime buyer of a `PEAK_STOP` trial MUST NOT be a fault buyer.
+
+A variant MUST have no new mechanism that finds or repairs a fault stop. BR-HKP-027 and BR-HKP-067 give its only mechanisms.
+
+### BR-HKP-078 — Lost units and fault buyers
+
+For each `valid` trial, the oracle MUST give the number of lost units.
+
+```text
+lost_units = max(0, L - available_units - open_reservations - count(tickets where sale_id = S))
+```
+
+For each `valid` `PEAK_STOP` trial, the oracle MUST also count the fault buyers in each of these three groups:
+
+- fault buyers with a ticket.
+- fault buyers with a charge, no refund and no ticket.
+- fault buyers with no charge and no ticket.
+
+The oracle MUST find the fault buyers from the load journal and the fault rule of BR-HKP-077. The oracle MUST NOT use the telemetry of a fault stop.
+
+### BR-HKP-079 — Extension results file and replay
+
+A derivation tool MUST write one extension results file from the selected packages of the extension. It MUST NOT change the study results file of BR-HKP-045.
+
+Each value in the file MUST have the path of its source file in the package and the SHA-256 digest of that file.
+
+The file MUST list each extension run, each load probe and each variant validation of the extension that has a package. It MUST give the number of rehearsal packages (BR-HKP-066).
+
+The file MUST give the break rate of each variant and each `break_rate_confirmed` value.
+
+The verifier MUST do a replay of each package of the canonical run with the oracle of the extension. Each rule result, each trial verdict and each measure of BR-HKP-008 through BR-HKP-013 MUST be equal to the frozen value.
+
+The file MUST contain the record of that replay. The file MUST give the results of the `PEAK` trials of the canonical run with the label `canonical_run`.
+
+IF a replay gives a different value, THEN the tool MUST stop with an error and MUST write no file.
+
+IF the oracle changes after an extension run, THEN the operator MUST add an entry to the witness record (BR-HKP-048). The verifier MUST then do a replay of each earlier extension package with the same rule.
+
+The tool MUST refuse a package whose oracle digest has no entry in the witness record.
+
+### BR-HKP-080 — Eligibility and completion of the extension
+
+The comparison of an extension run MUST be `eligible` only when each condition of BR-HKP-042 is true for all trials of that run.
+
+An extension run is complete only when its first immutable package has each value of BR-HKP-062. It MUST also have no known safety breach and no contradictory amendment.
+
+The extension is complete only when `RATE_RUN_A`, `RATE_RUN_B`, `DEPTH_RUN`, `SHARD_RUN` and `STOP_RUN` are complete. `REPEAT_RUN` MUST also be complete when BR-HKP-075 gives it one or more trials.
+
+The extension results file MUST say which extension runs are complete. A summary can give the results of a complete extension run before the extension is complete. That summary MUST name each extension run that is not complete.
+
+The completion of Result 1 (BR-HKP-062) does not change.
+
 ## Reference Values
 
 *The owner accepted these values on 2026-11-14. The merge of this spec makes them final.*
@@ -1566,6 +1902,196 @@ The increase of the warm write throughput from 4,000 to 6,000 units costs USD 1.
 | First minute of the counters | `12:00` |
 
 With these values, the wave starts 3.0 seconds before the burst. In probe 5, the wave also started 3 seconds before the burst, and the first requests ran 2.5 to 2.8 seconds before the burst.
+
+### OR-HKP-011 — Scenarios of the extension
+
+*The owner accepted the values of OR-HKP-011 through OR-HKP-017 on 2026-11-17.*
+
+| Parameter | `RATE_50` | `RATE_100` | `RATE_250` | `RATE_500` | `RATE_1000` | `RATE_2500` | `LONG_PEAK` | `LONG_KEY` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Arrival rate, purchase attempts for each second | 50 | 100 | 250 | 500 | 1,000 | 2,500 | 5,000 | 2,500 |
+| Burst duration, seconds | 10 | 10 | 10 | 10 | 10 | 10 | 60 | 60 |
+| Buyers | 500 | 1,000 | 2,500 | 5,000 | 10,000 | 25,000 | 300,000 | 150,000 |
+| `lot_size` | 100 | 200 | 500 | 1,000 | 2,000 | 5,000 | 10,000 | 150,000 |
+| Interval between purchase attempts, milliseconds | 20 | 10 | 4 | 2 | 1 | 0.4 | 0.2 | 0.4 |
+| Declined buyers | 25 | 50 | 125 | 250 | 500 | 1,250 | 15,000 | 7,500 |
+| Eligible buyers | 475 | 950 | 2,375 | 4,750 | 9,500 | 23,750 | 285,000 | 142,500 |
+| Variants | `DT`, `DU`, `QF`, `HT` | `DT`, `DU`, `QF`, `HT` | `DT`, `DU`, `QF`, `HT` | `DT`, `DU`, `QF`, `HT` | `DT`, `DU`, `QF`, `HT` | `DT`, `DU`, `QF`, `HT` | `DT` | `DU` |
+
+Each other value of these scenarios is the value of `PEAK` in OR-HKP-001 and OR-HKP-002. `PEAK_STOP` has each value of `PEAK`.
+
+| Reference row for BR-HKP-019 | `arrival_sequence` | `scheduled_send_offset_ms` |
+|---|---:|---:|
+| `RATE_50`, second buyer | 2 | 20 |
+| `RATE_50`, last buyer | 500 | 9,980 |
+| `RATE_100`, last buyer | 1,000 | 9,990 |
+| `RATE_250`, last buyer | 2,500 | 9,996 |
+| `RATE_500`, last buyer | 5,000 | 9,998 |
+| `RATE_1000`, last buyer | 10,000 | 9,999 |
+| `RATE_2500`, last buyer | 25,000 | 9,999.6 |
+| `LONG_PEAK`, last buyer | 300,000 | 59,999.8 |
+| `LONG_KEY`, last buyer | 150,000 | 59,999.6 |
+
+### OR-HKP-012 — Limits of the service conditions
+
+| Limit | Value |
+|---|---:|
+| `max_lost_sales_fraction` | `0.0100` |
+| `min_fairness_ratio` | `0.9000` |
+| `max_no_outcome_fraction` | `0.0100` |
+| `buyer_deadline_ms` | 10,000 |
+
+These limits are a choice of the owner. The extension results file gives each measure, and a reader can apply different limits.
+
+### OR-HKP-013 — Sequences of the extension runs
+
+`SU` is `SHARDED_UPDATE`. The other short names are the names of OR-HKP-005.
+
+`RATE_RUN_A`:
+
+| Block | Scenario | Trial 1 | Trial 2 | Trial 3 | Trial 4 |
+|---|---|---|---|---|---|
+| 0 | `CONTROL` | `DT` | `DU` | `QF` | `HT` |
+| 1 | `RATE_50` | `DT` | `DU` | `QF` | `HT` |
+| 2 | `RATE_100` | `DU` | `HT` | `DT` | `QF` |
+| 3 | `RATE_250` | `QF` | `DT` | `HT` | `DU` |
+
+`RATE_RUN_B`:
+
+| Block | Scenario | Trial 1 | Trial 2 | Trial 3 | Trial 4 |
+|---|---|---|---|---|---|
+| 0 | `CONTROL` | `DT` | `DU` | `QF` | `HT` |
+| 1 | `RATE_500` | `DT` | `DU` | `QF` | `HT` |
+| 2 | `RATE_1000` | `DU` | `HT` | `DT` | `QF` |
+| 3 | `RATE_2500` | `QF` | `DT` | `HT` | `DU` |
+
+In each rate run, each variant has three different positions in the blocks 1 through 3.
+
+`DEPTH_RUN`:
+
+| Trial | Scenario | Variant |
+|---:|---|---|
+| 1 | `CONTROL` | `DT` |
+| 2 | `CONTROL` | `DU` |
+| 3 | `CONTROL` | `QF` |
+| 4 | `LONG_PEAK` | `DT` |
+| 5 | `PEAK` | `QF` |
+| 6 | `LONG_KEY` | `DU` |
+| 7 | `PEAK` | `QF` |
+| 8 | `LONG_PEAK` | `DT` |
+| 9 | `PEAK` | `QF` |
+| 10 | `LONG_KEY` | `DU` |
+| 11 | `PEAK` | `QF` |
+
+`SHARD_RUN`:
+
+| Trial | Scenario | Variant |
+|---:|---|---|
+| 1 | `CONTROL` | `SU` |
+| 2 | `CONTROL` | `DU` |
+| 3 | `PEAK` | `SU` |
+| 4 | `PEAK` | `DU` |
+| 5 | `PEAK` | `SU` |
+| 6 | `PEAK` | `SU` |
+
+`STOP_RUN`:
+
+| Block | Scenario | Trial 1 | Trial 2 | Trial 3 | Trial 4 | Trial 5 |
+|---|---|---|---|---|---|---|
+| 0 | `CONTROL` | `DT` | `DU` | `QF` | `HT` | `SU` |
+| 1 | `PEAK_STOP` | `DT` | `DU` | `QF` | `HT` | `SU` |
+| 2 | `PEAK_STOP` | `QF` | `HT` | `SU` | `DT` | `DU` |
+
+In the two `PEAK_STOP` blocks, each variant has two different positions. BR-HKP-075 gives the sequence of `REPEAT_RUN`.
+
+### OR-HKP-014 — Safety limits of the extension runs
+
+| Input | `RATE_RUN_A` | `RATE_RUN_B` | `DEPTH_RUN` | `REPEAT_RUN` | `SHARD_RUN` | `STOP_RUN` |
+|---|---:|---:|---:|---:|---:|---:|
+| Maximum active time | 21,600 seconds | 21,600 seconds | 21,600 seconds | 25,200 seconds | 10,800 seconds | 21,600 seconds |
+| Time kept for cleanup | 1,800 seconds | 1,800 seconds | 1,800 seconds | 1,800 seconds | 1,800 seconds | 1,800 seconds |
+| Total time limit | 23,400 seconds | 23,400 seconds | 23,400 seconds | 27,000 seconds | 12,600 seconds | 23,400 seconds |
+| Limit of the estimated cost | USD 60.00 | USD 60.00 | USD 60.00 | USD 75.00 | USD 30.00 | USD 60.00 |
+
+The canonical run had 16 trials. It used 15,990 seconds, and its estimated cost was USD 31.16.
+
+Each other safety input and each coordination input has the value of OR-HKP-006. The variant validation of `SHARDED_UPDATE` has the limits of a variant validation in OR-HKP-006.
+
+These values are maximums. They are not the durations that the owner predicts.
+
+### OR-HKP-015 — Shard values
+
+| Parameter | Value |
+|---|---:|
+| Shards for each sale of `SHARDED_UPDATE` | 10 |
+
+```text
+units(i)       = floor(L / 10) + 1      when i < (L mod 10)            # i = shard index, from 0 through 9
+units(i)       = floor(L / 10)          for each other shard
+shard_index(b) = integer(first 8 hexadecimal digits of SHA-256(decimal text of arrival_sequence(b))) mod 10
+```
+
+The decimal text of an arrival sequence has only the characters `0` through `9` and has no separator.
+
+| Reference row for the shard index | `arrival_sequence` | First 8 hexadecimal digits | `shard_index` |
+|---|---:|---|---:|
+| First buyer | 1 | `6b86b273` | 9 |
+| Second buyer | 2 | `d4735e3a` | 4 |
+| Third buyer | 3 | `4e074085` | 7 |
+| First fault buyer | 125 | `0f8ef337` | 5 |
+| Last buyer of `PEAK` | 50,000 | `60734f17` | 3 |
+
+| Reference row for the units | `lot_size` | Units of each shard |
+|---|---:|---|
+| `PEAK` | 10,000 | 1,000 in each shard |
+| `CONTROL` | 600 | 60 in each shard |
+| Prime sale | 1 | 1 in shard 0, and 0 in each other shard |
+| Example with a remainder | 1,003 | 101 in shards 0, 1 and 2, and 100 in each other shard |
+
+### OR-HKP-016 — Fault values
+
+| Parameter | Value |
+|---|---:|
+| `fault_modulus` | 250 |
+| `fault_remainder` | 125 |
+| Fault buyers in a `PEAK_STOP` trial | 200 |
+| Fault buyers that are declined buyers | 0 |
+| Fault buyers in the first 10,526 buyers | 42 |
+
+| Reference row for BR-HKP-077 | `arrival_sequence` | Fault buyer |
+|---|---:|---|
+| First fault buyer | 125 | Yes |
+| Second fault buyer | 375 | Yes |
+| Last fault buyer | 49,875 | Yes |
+| A buyer between two fault buyers | 250 | No |
+| A declined buyer | 120 | No |
+
+The first 10,526 buyers of `PEAK` contain the 10,000 eligible buyers of the fair set.
+
+### OR-HKP-017 — Worked example for the service conditions and the break rate
+
+Each row is one trial with a lot of 1,000 units and 5,000 buyers. The limits are the limits of OR-HKP-012.
+
+| Row | Lost sales | Fairness ratio | Buyers with no final outcome | 99th percentile of the final outcome delay | `sold` | `fair` | `answered` | `timely` | `serves` |
+|---|---:|---:|---:|---:|---|---|---|---|---|
+| `SC-1` | 10 | `0.9000` | 50 | 10,000 milliseconds | `true` | `true` | `true` | `true` | `true` |
+| `SC-2` | 11 | `0.9000` | 50 | 10,000 milliseconds | `false` | `true` | `true` | `true` | `false` |
+| `SC-3` | 10 | `0.8999` | 50 | 10,000 milliseconds | `true` | `false` | `true` | `true` | `false` |
+| `SC-4` | 10 | `0.9000` | 51 | 10,000 milliseconds | `true` | `true` | `false` | `true` | `false` |
+| `SC-5` | 10 | `0.9000` | 50 | 10,001 milliseconds | `true` | `true` | `true` | `false` | `false` |
+| `SC-6` | 1,000 | `0.0000` | 5,000 | No value | `false` | `false` | `false` | `false` | `false` |
+
+In row `SC-6`, each buyer got an `ERROR` answer. No buyer has a final outcome, and the trial has no ticket.
+
+Each row below is one variant in the rate series. `Y` is `serves` = `true`, and `N` is `serves` = `false`.
+
+| Row | 50 | 100 | 250 | 500 | 1,000 | 2,500 | 5,000 | `break_rate` | Label |
+|---|---|---|---|---|---|---|---|---|---|
+| `BK-1` | `Y` | `Y` | `N` | `N` | `N` | `N` | `N` | 250 | None |
+| `BK-2` | `Y` | `Y` | `Y` | `Y` | `Y` | `Y` | `Y` | `none` | None |
+| `BK-3` | `N` | `N` | `N` | `N` | `N` | `N` | `N` | 50 | None |
+| `BK-4` | `Y` | `Y` | `Y` | `Y` | `Y` | `Y` | `N` | 5,000 | None |
+| `BK-5` | `Y` | `N` | `Y` | `N` | `N` | `N` | `N` | 100 | `not_monotonic` |
 
 ## Acceptance Criteria
 
@@ -2486,12 +3012,242 @@ Verifies BR-HKP-067.
 
 Golden — a `DIRECT_UPDATE` trial with 10,495 units taken, 495 units back on the purchase path and 53 refused writes. After the closer, the stock snapshot shows 53 available units and 0 open reservations. BR-HKP-006 is `pass`, and the lost sales are 53.
 
+### AC-HKP-063 — The scenarios of the extension agree with the reference rows
+
+Verifies BR-HKP-069 and BR-HKP-070.
+
+- **Given** the scenario `RATE_250`
+- **When** the load generator makes the schedule of a trial
+- **Then** the schedule has 2,500 buyers for a lot of 500 units
+- **And** the last buyer has a scheduled send offset of 9,996 milliseconds.
+
+**Verification:** unit — each column and each reference row of OR-HKP-011. Integration — cases:
+
+- A rate scenario whose lot is not two times its arrival rate (rejected).
+- A `LONG_KEY` trial with a lot that is smaller than its number of buyers (rejected).
+- A `LONG_PEAK` trial of a variant that is not `DIRECT_TRANSACTION` (rejected).
+- A `LONG_KEY` trial of a variant that is not `DIRECT_UPDATE` (rejected).
+- The scenario `PEAK_STOP` (each value of `PEAK`).
+
+### AC-HKP-064 — The service conditions follow the limits
+
+Verifies BR-HKP-071.
+
+- **Given** a `valid` trial with the values of row `SC-1` of OR-HKP-017
+- **When** the oracle evaluates the trial
+- **Then** `sold`, `fair`, `answered` and `timely` are `true`
+- **And** `serves` is `true`, and the trial verdict does not change.
+
+**Verification:** golden — each row of the first table of OR-HKP-017. Cases:
+
+- A fraction that is more than its limit before the oracle rounds it and equal to the limit after (`false`).
+- A trial that is not `valid` (each condition is `null`).
+- A trial with the verdict `fail` and all four conditions true (`serves` is `true`, and the verdict stays `fail`).
+
+Static check — the source of the service conditions has no branch on a variant name.
+
+### AC-HKP-065 — The break rate comes from the rate series
+
+Verifies BR-HKP-072.
+
+- **Given** two eligible rate runs and a variant that has the results of row `BK-1` of OR-HKP-017
+- **When** the verifier derives the break rate of that variant
+- **Then** the break rate is 250
+- **And** the result gives the smallest arrival rate at which each service condition is `false`.
+
+**Verification:** golden — each row of the second table of OR-HKP-017. Cases:
+
+- A rate run whose comparison is not `eligible` (no break rate).
+- A variant that serves two of the three `PEAK` trials of the canonical run (it does not serve the `PEAK` point).
+- Two repeat trials at the break rate with `serves` = `false` and two at the next smaller rate with `serves` = `true` (`break_rate_confirmed` is `true`).
+- One repeat trial at the break rate with `serves` = `true` (`break_rate_confirmed` is `false`).
+- One repeat trial at the next smaller rate with `serves` = `false` (`break_rate_confirmed` is `false`).
+- A break rate of 50, with no smaller rate (only the trials at the break rate decide).
+
+### AC-HKP-066 — The ticket rate series of a long scenario
+
+Verifies BR-HKP-073.
+
+- **Given** a `valid` `LONG_KEY` trial with 1,800 tickets in each of the intervals 1 through 30
+- **And** 1,000 tickets in each of the intervals 31 through 60
+- **When** the oracle evaluates the trial
+- **Then** the series has 60 values, and `late_ticket_rate` is `1000.0`
+- **And** the row of `DL-4` has the value `1000.0` and `in_documented_limit`.
+
+**Verification:** golden — the case above. Cases:
+
+- Intervals 31 through 60 with 15 values of 1,000 and 15 values of 1,001 (`1000.5` and `more_than_documented_limit`).
+- A series of 59 intervals (`late_ticket_rate` is `null`, and the row is `not_comparable`).
+- An interval with no ticket (the value 0).
+- A `LONG_PEAK` trial (a series, and no row of `DL-4`).
+
+### AC-HKP-067 — Each extension run has its declared trials
+
+Verifies BR-HKP-068 and BR-HKP-074.
+
+- **Given** an admitted `RATE_RUN_A`
+- **When** the runner makes the run manifest
+- **Then** the manifest has 16 trials in the sequence of OR-HKP-013
+- **And** the first four trials are `CONTROL` trials.
+
+**Verification:** unit — each cell of each table of OR-HKP-013. Integration — cases:
+
+- No selected load probe (rejected).
+- A variant with no selected validation (rejected).
+- A `SHARD_RUN` with no verified validation of `SHARDED_UPDATE` (rejected).
+- A `STOP_RUN` variant whose source digest is different from the digest of its validation (rejected).
+- A manifest with a different sequence (rejected).
+- An estimated cost of more than the limit of OR-HKP-014 (rejected).
+- An extension run that writes into a package of the canonical run (rejected).
+- A condition statement with no limits of the service conditions (the verifier rejects the summary).
+- A trial of the extension with a different hold time (the equality projection does not pass).
+
+### AC-HKP-068 — The repeat run comes from the rate run
+
+Verifies BR-HKP-075.
+
+- **Given** two eligible rate runs with the break rates 250 for `DT`, 2,500 for `DU`, 50 for `QF` and `none` for `HT`
+- **When** admission derives the trials of `REPEAT_RUN`
+- **Then** the run has three `CONTROL` trials and ten other trials
+- **And** each pass has the sequence `QF` at 50, `DT` at 100, `DT` at 250, `DU` at 1,000 and `DU` at 2,500.
+
+**Verification:** golden — the case above. Integration — cases:
+
+- Each break rate is `none` (no `REPEAT_RUN`).
+- A manifest with a different list (rejected).
+- A rate run whose comparison is not `eligible` (rejected).
+- A variant digest that is different from the digest of the rate runs (rejected).
+- Two rate runs with different variant digests (rejected).
+- A break rate of 5,000 (two trials at `PEAK` and two trials at `RATE_2500`).
+
+### AC-HKP-069 — `SHARDED_UPDATE` goes to the next shard
+
+Verifies BR-HKP-076.
+
+- **Given** a sale of `SHARDED_UPDATE` with a lot of 10,000 units in ten shards
+- **And** a buyer with the arrival sequence 1, whose first shard is shard 9
+- **When** shard 9 has no available unit and shard 0 has one
+- **Then** the purchase function takes the unit of shard 0
+- **And** the reservation record names shard 0.
+
+**Verification:** unit — each reference row of OR-HKP-015. Integration — with a local stock store. Cases:
+
+- The first shard has a unit (one call).
+- Nine shards have no unit and the tenth shard has one (ten calls and `TICKET`).
+- No shard has a unit (ten calls and `SOLD_OUT`).
+- A shard with a memo (no call to that shard during the memo time).
+- Each shard has a memo (`SOLD_OUT` with no stock operation).
+- A shard after its memo time (the purchase function calls it again).
+- A sale with a lot of 1,003 units (each shard has the units of OR-HKP-015).
+
+### AC-HKP-070 — `SHARDED_UPDATE` puts a unit back to its shard
+
+Verifies BR-HKP-076 and BR-HKP-067.
+
+- **Given** a reservation of `SHARDED_UPDATE` in shard 4 whose buyer the payment provider declined
+- **When** the variant does the release
+- **Then** shard 4 has that unit again, and no other shard changes
+- **And** the `available_units` of the stock snapshot is the sum of the ten shards.
+
+**Verification:** integration — each case of AC-HKP-062 for `SHARDED_UPDATE`, with a local stock store. Golden — cases:
+
+- A stock snapshot whose shards give a different sum than its `available_units` (the oracle rejects the snapshot).
+- A settled trial with 10,000 tickets and no unit in each shard (BR-HKP-006 is `pass`).
+- A settled trial with 9,990 tickets, 4 units in shard 2 and 6 units in shard 7 (BR-HKP-006 is `pass`).
+
+### AC-HKP-071 — A fault stop ends the process after the unit
+
+Verifies BR-HKP-077.
+
+- **Given** a `PEAK_STOP` trial and a buyer with the arrival sequence 125
+- **When** the reservation operation takes a unit for that buyer
+- **Then** the process of the purchase function ends
+- **And** the purchase function sent no charge request and no response for that buyer.
+
+**Verification:** unit — each reference row of OR-HKP-016. Integration — for each of the five variants, with local stores. Cases:
+
+- A fault buyer that gets a unit (a fault stop, and no later call).
+- A fault buyer for whom no unit is available (no fault stop and `SOLD_OUT`).
+- A buyer that is not a fault buyer (no fault stop).
+- A configuration with no fault values and the arrival sequence 125 (no fault stop).
+- A `QUEUE_FIRST` message of a fault buyer with a receive count of 2 (no fault stop, and one final outcome).
+- A prime buyer that is a fault buyer (the runner rejects the prime sales).
+- A `CONTROL` trial of `STOP_RUN` (its configuration has no fault values).
+- A variant of the canonical run whose source has a change that is not the fault point (the static check rejects the variant).
+
+### AC-HKP-072 — Lost units and the groups of fault buyers
+
+Verifies BR-HKP-078.
+
+- **Given** settled evidence of a `PEAK_STOP` trial with a lot of 10,000 units and 9,960 tickets
+- **And** a stock snapshot with 0 available units and 0 open reservations
+- **When** the oracle evaluates the trial
+- **Then** `lost_units` is 40
+- **And** the rule result of BR-HKP-006 is `fail`.
+
+**Verification:** golden — the case above. Cases:
+
+- 9,960 tickets and 40 available units (`lost_units` is 0, and BR-HKP-006 is `pass`).
+- 10,001 tickets (`lost_units` is 0, and BR-HKP-002 is `fail`).
+- A fault buyer with a ticket (the first group).
+- A fault buyer with a charge, no refund and no ticket (the second group, and BR-HKP-003 is `fail`).
+- A fault buyer with no charge and no ticket (the third group).
+- Telemetry that shows 41 fault stops (the oracle result does not change).
+- A trial that is not `valid` (`null`).
+
+### AC-HKP-073 — The extension results file does a replay of the canonical run
+
+Verifies BR-HKP-079.
+
+- **Given** the packages of the canonical run and the package of an eligible `RATE_RUN_A`
+- **When** the derivation tool writes the extension results file
+- **Then** the file has a replay record with equal values
+- **And** the study results file of BR-HKP-045 has the same digest as before.
+
+**Verification:** golden — cases:
+
+- A replay with equal values (the tool writes the file).
+- A replay with one measure that is different (an error, and no file).
+- A package whose oracle digest has no entry in the witness record (refused).
+- A rehearsal package (refused).
+- A package of an extension run that is not eligible (refused).
+- Two oracle digests in the extension with an equal replay (the tool writes the file).
+- A `PEAK` trial of the canonical run (the file gives it with the label `canonical_run`).
+
+### AC-HKP-074 — When the extension is complete
+
+Verifies BR-HKP-080.
+
+- **Given** two complete rate runs, a complete `DEPTH_RUN` and a complete `REPEAT_RUN`
+- **And** no package of `SHARD_RUN` or of `STOP_RUN`
+- **When** the derivation tool writes the extension results file
+- **Then** the file says that the extension is not complete
+- **And** the file names `SHARD_RUN` and `STOP_RUN` as not complete.
+
+**Verification:** golden — cases:
+
+- All six extension runs are complete (the extension is complete).
+- Each break rate is `none`, and the five other runs are complete (the extension is complete).
+- An extension run that a recovery made safe (not complete).
+- An extension run with one trial that is not `valid` (the comparison is `ineligible`).
+- All `PEAK_STOP` verdicts are `fail` (the comparison is `eligible`).
+
+### AC-HKP-075 — The extension runs complete in the real cloud
+
+Verifies BR-HKP-068, BR-HKP-074 and BR-HKP-080.
+
+- **Given** a selected load probe and the verified variant validations of each extension run
+- **When** the operator does each extension run in `us-east-1` from clean committed source
+- **Then** the first package of each run has each value of BR-HKP-062.
+
+**Verification:** e2e — one execution of each extension run in the real cloud in `us-east-1`. Golden — the verifier derives the same values from each frozen package.
+
 ## Non-Goals
 
 - This capability does NOT move real money and does NOT use a real payment provider.
-- This capability does NOT stop a component during the peak. Failover of a cache, loss of power in an Availability Zone and a function that stops after its code are Result 2.
+- This capability does NOT stop a cache and does NOT remove the power of an Availability Zone. BR-HKP-077 gives the only fault of this spec.
 - This capability does NOT compare ElastiCache node-based clusters or their durability modes. They are Result 2.
-- This capability does NOT use more than one stock item or one hash slot for a sale. Write sharding is not a variant of this revision.
+- This capability does NOT use more than one stock item or one hash slot for a sale in the four variants of the canonical run. Only `SHARDED_UPDATE` has shards (BR-HKP-076).
 - This capability does NOT use a waiting room, a rate limit for each buyer, a CAPTCHA or bot detection.
 - This capability does NOT let a buyer send a purchase attempt again.
 - This capability does NOT sell seats with numbers, more than one unit for each purchase attempt, or more than one sale at the same time.
@@ -2532,6 +3288,7 @@ Each contract has a JSON schema in `study-2/contracts/`. BR-HKP-054 gives the se
 ### CTR-HKP-004 — Stock snapshot
 
 - **Record:** `variant_id`, `lot_size`, `available_units`, `open_reservations`, `read_consistency` (`strong`), `capture_sequence`, `captured_at`.
+- **Record for `SHARDED_UPDATE`:** also `shards`, with the `shard_index` and the `available_units` of each shard.
 - **Writer:** a reader of the apparatus that reads the stock store of the variant. A variant MUST NOT write this record.
 - **Error sibling:** `SNAPSHOT_UNAVAILABLE` with a reason.
 
@@ -2549,6 +3306,7 @@ Each contract has a JSON schema in `study-2/contracts/`. BR-HKP-054 gives the se
 
 - **Output, identity and validity:** the trial identity, each gate of BR-HKP-016 and the trial validity.
 - **Output, results:** each rule result, the trial verdict, each measure of BR-HKP-008 through BR-HKP-013 and the labels.
+- **Output, results of the extension:** also the measures of BR-HKP-071, BR-HKP-073 and BR-HKP-078.
 - **Output, evidence:** a reference to each evidence file with its digest.
 
 ### CTR-HKP-008 — Run summary
@@ -2583,6 +3341,8 @@ The operator CLI MUST have one operation for each of these actions:
 - billing import.
 - results derivation.
 - redaction.
+- extension run, with the name of the extension run.
+- derivation of the extension results file.
 
 Each operation MUST write one JSON document, and only one, to standard output. Each operation MUST end with exit code 0 only when it completed its action.
 
@@ -2593,6 +3353,21 @@ A rejection MUST contain the ID of the criterion that rejected the action. The r
 - **Record for each prime purchase attempt:** the prime scope identifier, the prime sale, `sent_offset_ms`, `http_status`, `answer_class`, `environment_id` and `answer_received_offset_ms`.
 - **Header:** the start of the prime wave, the start of the burst, the number of different environment identifiers and the result of the prime proof.
 - **Writer:** the load generator. The prime journal is not a part of the load journal of the trial.
+
+### CTR-HKP-014 — Extension run summary
+
+- **Output, science:** the run identity, the name of the extension run, the condition statement, each trial result and the comparison eligibility with its reasons.
+- **Output for `REPEAT_RUN`:** the digest of the package index of each rate run and each `break_rate_confirmed` value.
+- **Output, documentation and operations:** the same values as CTR-HKP-008.
+- The summary MUST NOT contain the package eligibility.
+
+### CTR-HKP-015 — Extension results file
+
+- **Output:** `results/study-2/results-extension.json`. It has each selected package of the extension with the digest of its package index. It has each value with its source path and digest.
+- **Output, replay:** the oracle digest of the extension, the digest of each package of the canonical run, and the result of the replay.
+- **Output, rate series:** the break rate of each variant, the smallest arrival rate at which each service condition is `false`, and the labels.
+- **Output, completion:** each extension run with `complete` or `not_complete`, and the completion of the extension.
+- The tool MUST NOT write `results/study-2/results.json`.
 
 ## Observability
 
@@ -2646,12 +3421,25 @@ The runner records one event in the coordination journal for each of these steps
 
 19. Rehearsals in the cloud came before the first evidence. They changed the implementation and showed that the prime wave is necessary. The study results file gives their number.
 20. A unit that a variant puts back after the burst is an available unit that no buyer can get. The lost sales of a trial contain these units.
+21. The rate runs have one trial for each variant at each arrival rate. `REPEAT_RUN` adds trials only near a break rate.
+22. The lot of a rate scenario changes with its arrival rate. In `RATE_50`, one lost sale is 1 % of the lot.
+23. The limits of the service conditions are a choice of the owner. A different limit gives a different break rate.
+24. A long scenario has new buyers during the full burst. It does not show a buyer that sends a purchase attempt again, and its fairness ratio does not apply to such a buyer.
+25. `LONG_KEY` cannot show the cause of a ticket rate above `DL-4`. DynamoDB keeps up to 300 seconds of burst capacity, and a burst of 60 seconds does not use all of it (OQ-HKP-025).
+26. DynamoDB can put more than one shard of `SHARDED_UPDATE` in one partition. The study cannot see the partitions of a table.
+27. The fault of BR-HKP-077 ends a process at one point of the purchase protocol. A real function can stop at each point, and a different point gives a different result.
+28. After a fault stop, Lambda starts a new execution environment. That cost is a part of each `PEAK_STOP` result.
+29. The fault of BR-HKP-077 does not stop the cache of `HOT_TIER`. Limitation 11 stays true after the extension (OQ-HKP-024).
+30. The extension runs and the canonical run are on different days, and the `PEAK` point of the rate series comes from the canonical run. The `PEAK` trials of `DEPTH_RUN` and of `SHARD_RUN` show for two variants if the conditions are the same.
+31. The hypotheses of the extension use the results of the canonical run. They are not independent of those results.
 
 ## Open Questions
 
 The load generator host and its tool are a choice of the implementation. The load probe of BR-HKP-035 resolves by experiment if that choice can send the `PEAK` schedule.
 
-The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. The revision of 2026-11-16 recorded the decisions OQ-HKP-016, OQ-HKP-017 and OQ-HKP-018. The revision of 2026-11-17 recorded the decision OQ-HKP-019. No question stays open.
+The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. The revision of 2026-11-16 recorded the decisions OQ-HKP-016, OQ-HKP-017 and OQ-HKP-018. The revision of 2026-11-17 recorded the decision OQ-HKP-019. The extension revision of 2026-11-17 recorded the decisions OQ-HKP-020 through OQ-HKP-023 and OQ-HKP-026.
+
+OQ-HKP-024 and OQ-HKP-025 stay open. They are questions for service teams, and they do not stop an execution of the extension.
 
 ### OQ-HKP-001 — Code and name of the capability (RETIRED)
 
@@ -2760,6 +3548,45 @@ In the rehearsals before BR-HKP-033 had this rule, the consumer did the 10 messa
 
 Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10. The cause of a number that is more than the maximum concurrency is not known. This is a question for the Lambda team.
 
+### OQ-HKP-020 — Scenarios and number of trials of the extension (RETIRED)
+
+- Decision: six rate scenarios with one trial for each variant, and more trials only near a break rate. Two long scenarios with two trials each. Four more `PEAK` trials of `QUEUE_FIRST`. Two `PEAK_STOP` trials for each variant.
+- Resolved by: BR-HKP-069, BR-HKP-070, BR-HKP-074, BR-HKP-075, OR-HKP-011 and OR-HKP-013.
+
+### OQ-HKP-021 — A buyer that sends a purchase attempt again (RETIRED)
+
+- Decision: this spec does not add it. A second purchase attempt of one buyer is possible only with a variant that continues the first one. No variant of this study does that. `LONG_PEAK` shows a sale in which buyers continue to arrive.
+- Resolved by: BR-HKP-070 and limitation 24.
+
+### OQ-HKP-022 — Limits of the service conditions (RETIRED)
+
+- Decision: a variant serves a trial when four conditions are true. The lost sales are 1 % of the lot or less. The fairness ratio is `0.9000` or more. The buyers with no final outcome are 1 % of the buyers or less. The 99th percentile of the final outcome delay is not more than the buyer deadline.
+- Resolved by: BR-HKP-071 and OR-HKP-012.
+
+### OQ-HKP-023 — Number of shards and shard function (RETIRED)
+
+- Decision: ten shards for each sale. The first shard of a buyer comes from the SHA-256 digest of the arrival sequence.
+- Resolved by: BR-HKP-076 and OR-HKP-015.
+
+### OQ-HKP-024 — A cache that stops during the peak
+
+- This question is open. It is a question for the ElastiCache team.
+- The AWS FIS action `aws:elasticache:replicationgroup-interrupt-az-power` does not support a serverless cache. The writer found no documented operation that stops a serverless cache.
+- Question: which writes can a serverless cache lose when a node stops, and how can a study cause that condition?
+- Until the answer, no execution stops the cache, and the condition statement of `HOT_TIER` says this.
+
+### OQ-HKP-025 — Ticket rate of one stock item above `DL-4`
+
+- This question is open. It is a question for the DynamoDB team.
+- In the canonical run, `DIRECT_UPDATE` had a peak ticket rate of 1,815 to 1,828 on one stock item. `DL-4` gives 1,000, and `DL-10` can explain a larger rate for a short time.
+- Question: what limits the writes of one item of an on-demand table, and for how long?
+- `LONG_KEY` gives the ticket rate for 60 seconds. It cannot show the cause.
+
+### OQ-HKP-026 — Form of the fault (RETIRED)
+
+- Decision: the process of the purchase function ends after the reservation operation takes a unit. The fault applies to 1 buyer of each 250, only on the first execution.
+- Resolved by: BR-HKP-077 and OR-HKP-016.
+
 ## External Sources
 
 These sources give the documented behavior that the hypotheses and OR-HKP-007 use. They do not give the business rules.
@@ -2792,6 +3619,8 @@ These sources give the documented behavior that the hypotheses and OR-HKP-007 us
 | [AWS Database Blog: Pre-warming Amazon DynamoDB tables with warm throughput](https://aws.amazon.com/blogs/database/pre-warming-amazon-dynamodb-tables-with-warm-throughput/) (2024-11-13) | The price of a unit of increase in `us-east-1` | 2026-11-14 |
 | [Amazon ElastiCache pricing](https://aws.amazon.com/elasticache/pricing/) | The prices of ECPUs and of data for ElastiCache Serverless for Valkey. The minimum of 100 MB | 2026-11-14 |
 | [ElastiCache Serverless for Valkey: public endpoints](https://aws.amazon.com/about-aws/whats-new/2026/09/amazon-elasticache-serverless-public-endpoints/) (2026-09-29) | A cache with a public endpoint needs no VPC. It needs Valkey 9.0 or later, IAM authentication and TLS 1.3 | 2026-11-14 |
+| [DynamoDB: write sharding](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html) | A calculated suffix on the partition key distributes writes between partition key values. The pattern of `SHARDED_UPDATE` | 2026-11-17 |
+| [AWS FIS: actions reference](https://docs.aws.amazon.com/fis/latest/userguide/fis-actions-reference.html) | The ElastiCache action interrupts the power of nodes of a replication group. It does not support a serverless cache | 2026-11-17 |
 
 Retrieval notes:
 

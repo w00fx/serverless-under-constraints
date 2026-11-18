@@ -1487,7 +1487,7 @@ The limits MUST agree with OR-HKP-012. The oracle MUST compare each fraction bef
 
 The oracle MUST give each fraction as a decimal string with four decimal places. The oracle MUST round each fraction half up.
 
-IF no buyer of the trial has a final outcome, THEN `timely` MUST be `false`.
+IF no buyer of the trial has a final outcome, THEN `timely` MUST be `false`. IF the fair set is empty, THEN `fair` MUST be `false`.
 
 A service condition is a measure. It MUST NOT change a rule result or a trial verdict.
 
@@ -1513,6 +1513,8 @@ and each repeat trial at the next smaller arrival rate has serves = true
 ```
 
 The verifier MUST derive a break rate only when the comparison of each of the two rate runs is `eligible`.
+
+IF the extension has more than one package of one rate run, THEN the verifier MUST derive no break rate and MUST give the reason.
 
 ### BR-HKP-073 — Ticket rate series
 
@@ -1612,6 +1614,8 @@ WHEN the reservation operation takes a unit for a fault buyer, the purchase func
 
 After that reservation operation, the purchase function MUST do no call to a data store, to the payment provider or to the front door. It MUST write one line of telemetry before the fault stop.
 
+The telemetry of each `PEAK_STOP` trial MUST give the number of these lines and the arrival sequence of each line. These values explain a result, and they decide nothing (BR-HKP-078).
+
 The fault MUST apply only to the first execution of a purchase attempt. For `QUEUE_FIRST`, the fault MUST apply only when the receive count of the message is 1.
 
 In `STOP_RUN`, the configuration of the purchase function MUST give the fault values and the `sale_id` of each `PEAK_STOP` trial of its variant. A purchase function with no fault values in its configuration MUST have no fault stop.
@@ -1656,6 +1660,8 @@ In the replay, each rule result, each trial verdict and each measure of BR-HKP-0
 
 The file MUST contain the record of that replay. The file MUST give the results of the `PEAK` trials of the canonical run with the label `canonical_run`.
 
+The replay MUST compare only these values. It MUST NOT compare a version field of an oracle result.
+
 IF a replay gives a different value, THEN the tool MUST stop with an error and MUST write no file.
 
 IF the oracle changes after an extension run, THEN the operator MUST add an entry to the witness record (BR-HKP-048). The verifier MUST then do a replay of each earlier extension package with the same rule. In that replay, each measure of BR-HKP-071, BR-HKP-073 and BR-HKP-078 MUST also be equal to the frozen value.
@@ -1670,7 +1676,7 @@ An extension run is complete only when its first immutable package has each valu
 
 The extension is complete only when `RATE_RUN_A`, `RATE_RUN_B`, `DEPTH_RUN`, `SHARD_RUN` and `STOP_RUN` are complete. `REPEAT_RUN` MUST also be complete when BR-HKP-075 gives it one or more trials.
 
-The extension results file MUST say which extension runs are complete. A summary can give the results of a complete extension run before the extension is complete. That summary MUST name each extension run that is not complete.
+The extension results file MUST say which extension runs are complete. A public summary can give the results of a complete extension run before the extension is complete. That summary MUST name each extension run that is not complete. The extension results file gives this list.
 
 The completion of Result 1 (BR-HKP-062) does not change.
 
@@ -2086,7 +2092,7 @@ Each row is one trial with a lot of 1,000 units and 5,000 buyers. The limits are
 |---|---:|---:|---:|---:|---|---|---|---|---|
 | `SC-1` | 10 | `0.9000` | 50 | 10,000 milliseconds | `true` | `true` | `true` | `true` | `true` |
 | `SC-2` | 11 | `0.9000` | 50 | 10,000 milliseconds | `false` | `true` | `true` | `true` | `false` |
-| `SC-3` | 10 | `0.8999` | 50 | 10,000 milliseconds | `true` | `false` | `true` | `true` | `false` |
+| `SC-3` | 10 | `0.8990` | 50 | 10,000 milliseconds | `true` | `false` | `true` | `true` | `false` |
 | `SC-4` | 10 | `0.9000` | 51 | 10,000 milliseconds | `true` | `true` | `false` | `true` | `false` |
 | `SC-5` | 10 | `0.9000` | 50 | 10,001 milliseconds | `true` | `true` | `true` | `false` | `false` |
 | `SC-6` | 1,000 | `0.0000` | 5,000 | No value | `false` | `false` | `false` | `false` | `false` |
@@ -3068,6 +3074,7 @@ Verifies BR-HKP-072.
 **Verification:** golden — each row of the second table of OR-HKP-017. Cases:
 
 - A rate run whose comparison is not `eligible` (no break rate).
+- Two packages of `RATE_RUN_A` (no break rate, with the reason).
 - A variant that serves two of the three `PEAK` trials of the canonical run (it does not serve the `PEAK` point).
 - A variant with `fair` = `false` in one of the three `PEAK` trials (`fair` is `false` at the `PEAK` point).
 - Two repeat trials at the break rate with `serves` = `false` and two at the next smaller rate with `serves` = `true` (`break_rate_confirmed` is `true`).
@@ -3180,6 +3187,7 @@ Verifies BR-HKP-077.
 **Verification:** unit — each reference row of OR-HKP-016. Integration — for each of the five variants, with local stores. Cases:
 
 - A fault buyer that gets a unit (a fault stop, and no later call).
+- Three fault stops in one trial (the telemetry gives the number 3 and the three arrival sequences).
 - A fault buyer for whom no unit is available (no fault stop and `SOLD_OUT`).
 - A buyer that is not a fault buyer (no fault stop).
 - A configuration with no fault values and the arrival sequence 125 (no fault stop).
@@ -3388,7 +3396,7 @@ A rejection MUST contain the ID of the criterion that rejected the action. The r
 - **Output, replay:** the oracle digest of the extension, the digest of each package of the replay and the result of the replay.
 - **Output, witness:** the SHA-256 digest of the witness file.
 - **Output, rate series:** the break rate of each variant, the smallest arrival rate at which each service condition is `false`, and the labels.
-- **Output, completion:** each extension run with `complete` or `not_complete`, and the completion of the extension.
+- **Output, completion:** each extension run with `complete` or `not_complete`, and the completion of the extension. `REPEAT_RUN` has `not_required` when BR-HKP-075 gives it no trial.
 - The tool MUST NOT write `results/study-2/results.json`.
 
 ## Observability

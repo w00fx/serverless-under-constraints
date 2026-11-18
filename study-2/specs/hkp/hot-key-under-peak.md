@@ -1614,9 +1614,11 @@ After that reservation operation, the purchase function MUST do no call to a dat
 
 The fault MUST apply only to the first execution of a purchase attempt. For `QUEUE_FIRST`, the fault MUST apply only when the receive count of the message is 1.
 
-The trial configuration of the purchase function MUST give the fault values and the `sale_id` of the trial. A purchase function with no fault values in its configuration MUST have no fault stop.
+In `STOP_RUN`, the configuration of the purchase function MUST give the fault values and the `sale_id` of each `PEAK_STOP` trial of its variant. A purchase function with no fault values in its configuration MUST have no fault stop.
 
-The fault MUST apply only to a purchase attempt for that `sale_id`. A prime purchase attempt has a prime sale, and the fault does not apply to it.
+The fault MUST apply only to a purchase attempt for one of those `sale_id` values. The sale of a `CONTROL` trial and a prime sale are not in that list, and the fault does not apply to them.
+
+The fault values and those `sale_id` values are not a part of the variant configuration of BR-HKP-038. The run manifest MUST record them.
 
 The prime wave and the load generator of a `PEAK_STOP` trial MUST be the same as for a `PEAK` trial.
 
@@ -1656,7 +1658,7 @@ The file MUST contain the record of that replay. The file MUST give the results 
 
 IF a replay gives a different value, THEN the tool MUST stop with an error and MUST write no file.
 
-IF the oracle changes after an extension run, THEN the operator MUST add an entry to the witness record (BR-HKP-048). The verifier MUST then do a replay of each earlier extension package with the same rule.
+IF the oracle changes after an extension run, THEN the operator MUST add an entry to the witness record (BR-HKP-048). The verifier MUST then do a replay of each earlier extension package with the same rule. In that replay, each measure of BR-HKP-071, BR-HKP-073 and BR-HKP-078 MUST also be equal to the frozen value.
 
 The tool MUST read the witness record from the file `witness/study-2.jsonl` of the checkout. The tool MUST record the SHA-256 digest of that file. The tool MUST refuse a package whose oracle digest has no entry in the witness record.
 
@@ -3184,7 +3186,9 @@ Verifies BR-HKP-077.
 - A `QUEUE_FIRST` message of a fault buyer with a receive count of 2 (no fault stop, and one final outcome).
 - A prime purchase attempt with the arrival sequence 125 in a `PEAK_STOP` trial (no fault stop, and HTTP status 200).
 - A purchase attempt with the arrival sequence 125 for a `sale_id` that is not in the configuration (no fault stop).
-- A `CONTROL` trial of `STOP_RUN` (its configuration has no fault values).
+- A purchase attempt with the arrival sequence 125 in a `CONTROL` trial of `STOP_RUN` (no fault stop, because its `sale_id` is not in the configuration).
+- A `STOP_RUN` variant whose validation had no fault values (admission selects the validation, because the variant digests are equal).
+- A `STOP_RUN` manifest with no fault values or with no `sale_id` of a `PEAK_STOP` trial (rejected).
 - A variant of the canonical run whose source has a change that is not the fault point (the static check rejects the variant).
 
 ### AC-HKP-072 — Lost units and the groups of fault buyers
@@ -3226,6 +3230,7 @@ Verifies BR-HKP-079.
 - A rehearsal package (refused).
 - A package of an extension run that is not eligible (refused).
 - Two oracle digests in the extension with an equal replay (the tool writes the file).
+- A replay of an extension package with a different `serves` value or a different `lost_units` value (an error, and no file).
 - A `PEAK` trial of the canonical run (the file gives it with the label `canonical_run`).
 - A replay with no package of a variant validation of the canonical run (refused).
 - A checkout with no witness file (refused).
@@ -3601,7 +3606,7 @@ Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10.
 
 ### OQ-HKP-026 — Form of the fault (RETIRED)
 
-- Decision: the process of the purchase function ends after the reservation operation takes a unit. The fault applies to 1 buyer of each 250, only on the first execution and only for the sale of the trial.
+- Decision: the process of the purchase function ends after the reservation operation takes a unit. The fault applies to 1 buyer of each 250, only on the first execution and only for the sales of the `PEAK_STOP` trials. One deployment of a function gives the values for all its trials of the run.
 - Resolved by: BR-HKP-077 and OR-HKP-016.
 
 ## External Sources

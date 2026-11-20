@@ -5,7 +5,7 @@ status: ratified     # draft → ratified when a human merges the spec PR
 owner: Raphael Moura
 approved_by: Raphael Moura
 approved_at: 2026-11-15
-provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal. The extension revision of 2026-11-17 adds the extension: rate scenarios, long scenarios, the variant SHARDED_UPDATE and one fault of Result 2. Its questions come from the results of the canonical run of 2026-11-17. The owner accepted its proposals on 2026-11-17.
+provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal. The extension revision of 2026-11-17 adds the extension: rate scenarios, long scenarios, the variant SHARDED_UPDATE and one fault of Result 2. Its questions come from the results of the canonical run of 2026-11-17. The owner accepted its proposals on 2026-11-17. The extension revision of 2026-11-20 adds BR-HKP-081, after RATE_RUN_B lost its lease on 2026-11-20 with oracle results only for its four CONTROL trials.
 ---
 
 # Capability: Study 2 — Evaluate ticket-sale rules under a traffic peak on one hot key
@@ -318,6 +318,9 @@ _Avoid_: Crash, kill, chaos.
 **Lost unit**: A unit that is not an available unit, not a ticket and not in an open reservation at settlement (BR-HKP-006).
 
 **Replay**: An evaluation of a frozen package with a later oracle. It changes no file of the package.
+
+**Stopped package**: A package of an extension run whose `run_terminal_reason` is `LEASE_LOST`.
+_Avoid_: Failed run, aborted run, bad run.
 
 ## Sale Domain
 
@@ -1514,7 +1517,7 @@ and each repeat trial at the next smaller arrival rate has serves = true
 
 The verifier MUST derive a break rate only when the comparison of each of the two rate runs is `eligible`.
 
-IF the extension has more than one package of one rate run, THEN the verifier MUST derive no break rate and MUST give the reason.
+A rate run MUST have only one package that is not a stopped package. IF it has more, THEN the verifier MUST derive no break rate and MUST give the reason.
 
 ### BR-HKP-073 — Ticket rate series
 
@@ -1672,13 +1675,32 @@ The tool MUST read the witness record from the file `witness/study-2.jsonl` of t
 
 The comparison of an extension run MUST be `eligible` only when each condition of BR-HKP-042 is true for all trials of that run.
 
-An extension run is complete only when its first immutable package has each value of BR-HKP-062. It MUST also have no known safety breach and no contradictory amendment.
+An extension run is complete only when one package has each value of BR-HKP-062. That package MUST be the first immutable package of the run that is not a stopped package (BR-HKP-081). It MUST also have no known safety breach and no contradictory amendment.
 
 The extension is complete only when `RATE_RUN_A`, `RATE_RUN_B`, `DEPTH_RUN`, `SHARD_RUN` and `STOP_RUN` are complete. `REPEAT_RUN` MUST also be complete when BR-HKP-075 gives it one or more trials.
 
 The extension results file MUST say which extension runs are complete. A public summary can give the results of a complete extension run before the extension is complete. That summary MUST name each extension run that is not complete. The extension results file gives this list.
 
 The completion of Result 1 (BR-HKP-062) does not change.
+
+### BR-HKP-081 — New execution after a stopped package
+
+*The extension revision of 2026-11-20 added this rule. `RATE_RUN_B` lost its lease on 2026-11-20, and its package had oracle results only for its four `CONTROL` trials.*
+
+A lost lease is a condition of the coordination path of the operator. It is not a result of a variant.
+
+The operator can do a new execution of an extension run only when these two conditions are true:
+
+- each earlier package of that run is a stopped package.
+- no earlier package of that run has an oracle result for a trial that is not a `CONTROL` trial.
+
+Admission MUST reject a new execution of an extension run when one of these conditions is false.
+
+A new execution MUST have all trials of the run. Each rule of this spec for that extension run MUST apply to it.
+
+A stopped package MUST stay in the evidence, and the operator MUST NOT change it. The extension results file MUST list each stopped package with the digest of its package index, its `run_terminal_reason` and each oracle result that it has.
+
+IF a stopped package has an oracle result for a trial that is not a `CONTROL` trial, THEN the run MUST have no new execution. That run is not complete. A public summary can give the valid trials of that package with the label `stopped_package`.
 
 ## Reference Values
 
@@ -3074,7 +3096,7 @@ Verifies BR-HKP-072.
 **Verification:** golden — each row of the second table of OR-HKP-017. Cases:
 
 - A rate run whose comparison is not `eligible` (no break rate).
-- Two packages of `RATE_RUN_A` (no break rate, with the reason).
+- Two packages of `RATE_RUN_A` that are not stopped packages (no break rate, with the reason).
 - A variant that serves two of the three `PEAK` trials of the canonical run (it does not serve the `PEAK` point).
 - A variant with `fair` = `false` in one of the three `PEAK` trials (`fair` is `false` at the `PEAK` point).
 - Two repeat trials at the break rate with `serves` = `false` and two at the next smaller rate with `serves` = `true` (`break_rate_confirmed` is `true`).
@@ -3271,6 +3293,31 @@ Verifies BR-HKP-068, BR-HKP-074 and BR-HKP-080.
 
 **Verification:** e2e — one execution of each extension run in the real cloud in `us-east-1`. Golden — the verifier derives the same values from each frozen package.
 
+### AC-HKP-076 — A new execution after a stopped package
+
+Verifies BR-HKP-081.
+
+- **Given** one package of `RATE_RUN_B` with the `run_terminal_reason` `LEASE_LOST`
+- **And** oracle results for its four `CONTROL` trials and for no other trial
+- **When** the operator starts a new execution of `RATE_RUN_B`
+- **Then** admission accepts the execution
+- **And** after the new execution is complete, the extension results file lists the stopped package and gives the break rates.
+
+**Verification:** integration — cases:
+
+- The case above (accepted).
+- A stopped package with an oracle result for one `RATE_500` trial (rejected, and the run is not complete).
+- An earlier package with the `run_terminal_reason` `COMPLETED` and a comparison that is `ineligible` (rejected).
+- Two stopped packages with oracle results only for `CONTROL` trials (admission accepts a third execution).
+- A new execution with fewer trials than the run (rejected).
+
+Golden — cases:
+
+- One stopped package and one complete package of `RATE_RUN_B` (the run is complete, and the file lists the stopped package with its four oracle results).
+- Two packages of `RATE_RUN_B` that are not stopped packages (no break rate, with the reason).
+- A stopped package with one changed file (the verifier rejects the evidence).
+- A stopped package with valid `RATE_500` trials and no later package (the file gives these trials with the label `stopped_package`, and the run is not complete).
+
 ## Non-Goals
 
 - This capability does NOT move real money and does NOT use a real payment provider.
@@ -3397,6 +3444,7 @@ A rejection MUST contain the ID of the criterion that rejected the action. The r
 - **Output, witness:** the SHA-256 digest of the witness file.
 - **Output, rate series:** the break rate of each variant, the smallest arrival rate at which each service condition is `false`, and the labels.
 - **Output, completion:** each extension run with `complete` or `not_complete`, and the completion of the extension. `REPEAT_RUN` has `not_required` when BR-HKP-075 gives it no trial.
+- **Output, stopped packages:** each stopped package with its extension run, the digest of its package index, its `run_terminal_reason` and its oracle results.
 - The tool MUST NOT write `results/study-2/results.json`.
 
 ## Observability
@@ -3462,12 +3510,17 @@ The runner records one event in the coordination journal for each of these steps
 29. The fault of BR-HKP-077 does not stop the cache of `HOT_TIER`. Limitation 11 stays true after the extension (OQ-HKP-024).
 30. The extension runs and the canonical run are on different days, and the `PEAK` point of the rate series comes from the canonical run. The `PEAK` trials of `DEPTH_RUN` and of `SHARD_RUN` show for two variants if the conditions are the same.
 31. The hypotheses of the extension use the results of the canonical run. They are not independent of those results.
+32. `RATE_RUN_B` lost its lease on 2026-11-20 after its four `CONTROL` trials. BR-HKP-081 came after that event. Its two conditions use only values that the stopped package recorded before the revision.
+33. An operator can cause a lost lease. With BR-HKP-081, a new execution is possible only when the stopped package has no oracle result of a rate scenario, a long scenario, `PEAK` or `PEAK_STOP`.
+34. The runner of an execution can operate from a different host than the runner of the canonical run. The environment record of each package gives the host. The host of the load generator does not change.
 
 ## Open Questions
 
 The load generator host and its tool are a choice of the implementation. The load probe of BR-HKP-035 resolves by experiment if that choice can send the `PEAK` schedule.
 
 The owner accepted the proposals of the writer on 2026-11-14. Each question that this decision closed shows RETIRED and names the IDs that answer it. The revision of 2026-11-15 closed OQ-HKP-006 and OQ-HKP-008. The owner accepted OQ-HKP-014 and OQ-HKP-015 on 2026-11-15. The revision of 2026-11-16 recorded the decisions OQ-HKP-016, OQ-HKP-017 and OQ-HKP-018. The revision of 2026-11-17 recorded the decision OQ-HKP-019. The extension revision of 2026-11-17 recorded the decisions OQ-HKP-020 through OQ-HKP-023 and OQ-HKP-026.
+
+The extension revision of 2026-11-20 recorded the decision OQ-HKP-027.
 
 OQ-HKP-024 and OQ-HKP-025 stay open. They are questions for service teams, and they do not stop an execution of the extension.
 
@@ -3616,6 +3669,11 @@ Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10.
 
 - Decision: the process of the purchase function ends after the reservation operation takes a unit. The fault applies to 1 buyer of each 250, only on the first execution and only for the sales of the `PEAK_STOP` trials. One deployment of a function gives the values for all its trials of the run.
 - Resolved by: BR-HKP-077 and OR-HKP-016.
+
+### OQ-HKP-027 — An extension run that loses its lease (RETIRED)
+
+- Decision: a run can have a new execution only when each earlier package is a stopped package with oracle results for `CONTROL` trials only. In each other condition, the first package stays the only package of the run.
+- Resolved by: BR-HKP-081, BR-HKP-072, BR-HKP-080 and limitations 32 and 33.
 
 ## External Sources
 

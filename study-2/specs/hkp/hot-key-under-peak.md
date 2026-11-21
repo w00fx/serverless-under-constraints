@@ -3512,7 +3512,7 @@ The runner records one event in the coordination journal for each of these steps
 31. The hypotheses of the extension use the results of the canonical run. They are not independent of those results.
 32. `RATE_RUN_B` lost its lease on 2026-11-20 after its four `CONTROL` trials. BR-HKP-081 came after that event. Its two conditions use only values that the stopped package recorded before the revision.
 33. An operator can cause a lost lease. With BR-HKP-081, a new execution is possible only when the stopped package has no oracle result of a rate scenario, a long scenario, `PEAK` or `PEAK_STOP`.
-34. The runner of an execution can operate from a different host than the runner of the canonical run. A package does not record the host of its runner. The manifest records only the tool versions of the runner (BR-HKP-050). The host of the load generator does not change.
+34. The runner of an execution can operate from a different host than the runner of the canonical run. No field of the manifest records the host of the runner. The copy of the deployment assembly in a package has the absolute path of the checkout of the runner. That path is not in a template, an asset manifest or a bundle. The digest of the deployment assembly (BR-HKP-050) changes with that path and with the run identifier. The host of the load generator does not change.
 
 ## Open Questions
 

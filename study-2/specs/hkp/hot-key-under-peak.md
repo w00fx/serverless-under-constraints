@@ -5,7 +5,7 @@ status: ratified     # draft → ratified when a human merges the spec PR
 owner: Raphael Moura
 approved_by: Raphael Moura
 approved_at: 2026-11-15
-provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal. The extension revision of 2026-11-17 adds the extension: rate scenarios, long scenarios, the variant SHARDED_UPDATE and one fault of Result 2. Its questions come from the results of the canonical run of 2026-11-17. The owner accepted its proposals on 2026-11-17. The extension revision of 2026-11-20 adds BR-HKP-081, after RATE_RUN_B lost its lease on 2026-11-20 with oracle results only for its four CONTROL trials.
+provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal. The extension revision of 2026-11-17 adds the extension: rate scenarios, long scenarios, the variant SHARDED_UPDATE and one fault of Result 2. Its questions come from the results of the canonical run of 2026-11-17. The owner accepted its proposals on 2026-11-17. The extension revision of 2026-11-20 adds BR-HKP-081, after RATE_RUN_B lost its lease on 2026-11-20 with oracle results only for its four CONTROL trials. The extension revision of 2026-11-22 adds to BR-HKP-080 the public summary of an extension run with a trial that is not valid, after DEPTH_RUN completed on 2026-11-22 with one LONG_KEY trial that is not valid.
 ---
 
 # Capability: Study 2 — Evaluate ticket-sale rules under a traffic peak on one hot key
@@ -1680,6 +1680,10 @@ An extension run is complete only when one package has each value of BR-HKP-062.
 The extension is complete only when `RATE_RUN_A`, `RATE_RUN_B`, `DEPTH_RUN`, `SHARD_RUN` and `STOP_RUN` are complete. `REPEAT_RUN` MUST also be complete when BR-HKP-075 gives it one or more trials.
 
 The extension results file MUST say which extension runs are complete. A public summary can give the results of a complete extension run before the extension is complete. That summary MUST name each extension run that is not complete. The extension results file gives this list.
+
+*The extension revision of 2026-11-22 added the next paragraph. `DEPTH_RUN` completed on 2026-11-22, and one of its 11 trials is not `valid`.*
+
+The first package of an extension run can have the `run_terminal_reason` `COMPLETED` and a comparison that is `ineligible`. IF trial validity is its only false condition of BR-HKP-042, THEN a public summary can give its `valid` trials with the label `run_not_complete`. That summary MUST name each trial that is not `valid` and the gate that made it not `valid`. For each scenario of that run, the summary MUST give the number of `valid` trials. That run is not complete. It MUST have no new execution (BR-HKP-081).
 
 The completion of Result 1 (BR-HKP-062) does not change.
 
@@ -3513,6 +3517,9 @@ The runner records one event in the coordination journal for each of these steps
 32. `RATE_RUN_B` lost its lease on 2026-11-20 after its four `CONTROL` trials. BR-HKP-081 came after that event. Its two conditions use only values that the stopped package recorded before the revision.
 33. An operator can cause a lost lease. With BR-HKP-081, a new execution is possible only when the stopped package has no oracle result of a rate scenario, a long scenario, `PEAK` or `PEAK_STOP`.
 34. The runner of an execution can operate from a different host than the runner of the canonical run. No field of the manifest records the host of the runner. The copy of the deployment assembly in a package has the absolute path of the checkout of the runner. That path is not in a template, an asset manifest or a bundle. The digest of the deployment assembly (BR-HKP-050) changes with that path and with the run identifier. The host of the load generator does not change.
+35. `DEPTH_RUN` completed on 2026-11-22. One of its two `LONG_KEY` trials is not `valid`: the journal of the payment provider has internal errors of ledger writes (BR-HKP-023). The run has no new execution, and its `LONG_KEY` result comes from one trial.
+36. The journal of the payment provider does not record the request identifier of a ledger write that did not succeed. The evidence does not show the cause of those internal errors (OQ-HKP-029).
+37. The paragraph of BR-HKP-080 for a run with a trial that is not `valid` came after that event. It does not select a result: it applies to each `valid` trial of the run.
 
 ## Open Questions
 
@@ -3522,7 +3529,9 @@ The owner accepted the proposals of the writer on 2026-11-14. Each question that
 
 The extension revision of 2026-11-20 recorded the decision OQ-HKP-027.
 
-OQ-HKP-024 and OQ-HKP-025 stay open. They are questions for service teams, and they do not stop an execution of the extension.
+The extension revision of 2026-11-22 recorded the decision OQ-HKP-028 and added OQ-HKP-029.
+
+OQ-HKP-024, OQ-HKP-025 and OQ-HKP-029 stay open. They are questions for service teams, and they do not stop an execution of the extension.
 
 ### OQ-HKP-001 — Code and name of the capability (RETIRED)
 
@@ -3674,6 +3683,18 @@ Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10.
 
 - Decision: a run can have a new execution only when each earlier package is a stopped package with oracle results for `CONTROL` trials only. In each other condition, the first package stays the only package of the run.
 - Resolved by: BR-HKP-081, BR-HKP-072, BR-HKP-080 and limitations 32 and 33.
+
+### OQ-HKP-028 — An extension run with a trial that is not valid (RETIRED)
+
+- Decision: the run has no new execution and stays not complete. A public summary can give its `valid` trials with the label `run_not_complete`. A replication of a scenario is possible only as a new revision of this spec.
+- Resolved by: BR-HKP-080, BR-HKP-081 and limitations 35 through 37.
+
+### OQ-HKP-029 — Internal errors of ledger writes in a long scenario
+
+- This question is open. It is a question for the DynamoDB team.
+- In one `LONG_KEY` trial of `DEPTH_RUN`, the journal of the payment provider has 24 records with the message `ledger write failed: Internal server error`. They are in two groups, 42 seconds apart. The throttle counters of the tables of the payment provider were 0.
+- Question: when DynamoDB throttles no request, what causes an internal server error of a write to an on-demand table?
+- The payment provider does not do a ledger write again (BR-HKP-030), and the evidence has no request identifier.
 
 ## External Sources
 

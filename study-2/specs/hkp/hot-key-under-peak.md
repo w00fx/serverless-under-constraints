@@ -5,7 +5,7 @@ status: ratified     # draft → ratified when a human merges the spec PR
 owner: Raphael Moura
 approved_by: Raphael Moura
 approved_at: 2026-11-15
-provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal. The extension revision of 2026-11-17 adds the extension: rate scenarios, long scenarios, the variant SHARDED_UPDATE and one fault of Result 2. Its questions come from the results of the canonical run of 2026-11-17. The owner accepted its proposals on 2026-11-17. The extension revision of 2026-11-20 adds BR-HKP-081, after RATE_RUN_B lost its lease on 2026-11-20 with oracle results only for its four CONTROL trials. The extension revision of 2026-11-22 adds to BR-HKP-080 the public summary of an extension run with a trial that is not valid, after DEPTH_RUN completed on 2026-11-22 with one LONG_KEY trial that is not valid.
+provenance: Written on 2026-11-09 from the Study 2 entry of the private backlog (design of 2026-11-06, revision of 2026-11-09) and from the method of CAP-RUA. The owner accepted the proposals of the writer on 2026-11-14. The revision of 2026-11-15 adds the prime wave, the interval of the counters and the rule for rehearsals, from the results of rehearsal load probes. The owner accepted its proposals on 2026-11-15. The revision of 2026-11-16 adds the rule for the record of each unit. It also corrects the prime wave of the load probe, the documented limits and the reader capacity, from the results of the first full rehearsal. The extension revision of 2026-11-17 adds the extension: rate scenarios, long scenarios, the variant SHARDED_UPDATE and one fault of Result 2. Its questions come from the results of the canonical run of 2026-11-17. The owner accepted its proposals on 2026-11-17. The extension revision of 2026-11-20 adds BR-HKP-081, after RATE_RUN_B lost its lease on 2026-11-20 with oracle results only for its four CONTROL trials. The extension revision of 2026-11-22 adds to BR-HKP-080 the public summary of an extension run with a trial that is not valid, after DEPTH_RUN completed on 2026-11-22 with one LONG_KEY trial that is not valid. The extension revision of 2026-11-24 adds limitations 38 through 44, the rule for an exploratory count and OQ-HKP-030, after the last execution of the extension on 2026-11-24.
 ---
 
 # Capability: Study 2 — Evaluate ticket-sale rules under a traffic peak on one hot key
@@ -1684,6 +1684,16 @@ The extension results file MUST say which extension runs are complete. A public 
 *The extension revision of 2026-11-22 added the next paragraph. `DEPTH_RUN` completed on 2026-11-22, and one of its 11 trials is not `valid`.*
 
 The first package of an extension run can have the `run_terminal_reason` `COMPLETED` and a comparison that is `ineligible`. IF trial validity is its only false condition of BR-HKP-042, THEN a public summary can give its `valid` trials with the label `run_not_complete`. That summary MUST name each trial that is not `valid` and the gate that made it not `valid`. For each scenario of that run, the summary MUST give the number of `valid` trials. That run is not complete. It MUST have no new execution (BR-HKP-081).
+
+*The extension revision of 2026-11-24 added the next paragraph, after the last execution of the extension.*
+
+An exploratory count is a count that no rule of this spec gives. A public summary can give an exploratory count only when all these conditions are true:
+
+- the count comes only from frozen evidence.
+- a script in the repository gives the count, and the summary names that script.
+- the summary gives the count with the label `exploratory`.
+
+The extension results file MUST NOT contain an exploratory count.
 
 The completion of Result 1 (BR-HKP-062) does not change.
 
@@ -3520,6 +3530,13 @@ The runner records one event in the coordination journal for each of these steps
 35. `DEPTH_RUN` completed on 2026-11-22. One of its two `LONG_KEY` trials is not `valid`: the journal of the payment provider has internal errors of ledger writes (BR-HKP-023). The run has no new execution, and its `LONG_KEY` result comes from one trial.
 36. The journal of the payment provider does not record the request identifier of a ledger write that did not succeed. The evidence does not show the cause of those internal errors (OQ-HKP-029).
 37. The paragraph of BR-HKP-080 for a run with a trial that is not `valid` came after that event. It does not select a result: it applies to each `valid` trial of the run.
+38. `SHARDED_UPDATE` broke BR-HKP-006 with no fault in the `PEAK` trial of its validation and in each `PEAK` trial of `SHARD_RUN`. In those trials the available units and the tickets were equal to the lot, and 2 to 5 reservations stayed open. In a `PEAK_STOP` trial, a `fail` of BR-HKP-006 for this variant is not always an effect of the fault.
+39. The formula of `lost_units` (BR-HKP-078) subtracts the open reservations. An open reservation whose unit is back makes `lost_units` smaller. In a trial with open reservations, `lost_units` is a lower limit, and the sum of `lost_units` and `open_reservations` is the upper limit.
+40. The reservations table of each variant has the default warm throughput of a new on-demand table (OR-HKP-004). The study did not measure `SHARDED_UPDATE` with a larger value.
+41. The purchase protocol has three final outcomes, and none is for a reservation that the closer released after the hold time. The implementation gives `PAYMENT_DECLINED` when it finds a released reservation. In `QUEUE_FIRST`, a second delivery after a fault stop can find such a reservation. The buyer then gets `PAYMENT_DECLINED`, and the payment provider gets no charge request. The oracle has no measure for this condition. A public summary can give its count only as an exploratory count (BR-HKP-080).
+42. A break rate uses the fixed limits of BR-HKP-071. A measure near a limit can give a different `serves` value in a repeat trial. `break_rate_confirmed` reports this condition.
+43. The evidence does not show the cause of the lost lease of `RATE_RUN_B` on 2026-11-20.
+44. `SHARD_RUN` has one `PEAK` trial of `DIRECT_UPDATE` and three `PEAK` trials of `SHARDED_UPDATE`. The comparison of these two variants uses that one trial.
 
 ## Open Questions
 
@@ -3531,7 +3548,9 @@ The extension revision of 2026-11-20 recorded the decision OQ-HKP-027.
 
 The extension revision of 2026-11-22 recorded the decision OQ-HKP-028 and added OQ-HKP-029.
 
-OQ-HKP-024, OQ-HKP-025 and OQ-HKP-029 stay open. They are questions for service teams, and they do not stop an execution of the extension.
+The extension revision of 2026-11-24 added OQ-HKP-030 and one result to OQ-HKP-025.
+
+OQ-HKP-024, OQ-HKP-025, OQ-HKP-029 and OQ-HKP-030 stay open. They are questions for service teams, and they do not stop an execution of the extension.
 
 ### OQ-HKP-001 — Code and name of the capability (RETIRED)
 
@@ -3673,6 +3692,7 @@ Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10.
 - In the canonical run, `DIRECT_UPDATE` had a peak ticket rate of 1,815 to 1,828 on one stock item. `DL-4` gives 1,000, and `DL-10` can explain a larger rate for a short time.
 - Question: what limits the writes of one item of an on-demand table, and for how long?
 - `LONG_KEY` gives the ticket rate for 60 seconds. It cannot show the cause.
+- In the one `valid` `LONG_KEY` trial of `DEPTH_RUN`, the peak ticket rate was 1,805 and `late_ticket_rate` was `909.0`. This result has the label `run_not_complete`.
 
 ### OQ-HKP-026 — Form of the fault (RETIRED)
 
@@ -3695,6 +3715,13 @@ Lambda showed 3, 5 and 11 concurrent executions of the consumer for 2, 5 and 10.
 - In one `LONG_KEY` trial of `DEPTH_RUN`, the journal of the payment provider has 24 records with the message `ledger write failed: Internal server error`. They are in two groups, 42 seconds apart. The throttle counters of the tables of the payment provider were 0.
 - Question: when DynamoDB throttles no request, what causes an internal server error of a write to an on-demand table?
 - The payment provider does not do a ledger write again (BR-HKP-030), and the evidence has no request identifier.
+
+### OQ-HKP-030 — Fairness ratio of `QUEUE_FIRST` in two groups
+
+- This question is open. It is a question for the SQS team and the Lambda team.
+- `QUEUE_FIRST` has nine `PEAK` and `PEAK_STOP` trials in the canonical run, `DEPTH_RUN` and `STOP_RUN`. The fairness ratio was `0.5034` to `0.5464` in four trials and `0.9000` to `0.9355` in five trials. No trial was between these two groups.
+- Question: with the same load, what makes the sequence of a standard queue with an event source mapping go to one of two groups?
+- The evidence does not show the cause.
 
 ## External Sources
 
